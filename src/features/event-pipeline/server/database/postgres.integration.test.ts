@@ -15,7 +15,8 @@ describe("PostgreSQL event pipeline foundation", () => {
   let pool: Pool;
 
   beforeAll(async () => {
-    container = await new PostgreSqlContainer("postgis/postgis:17-3.5-alpine")
+    container = await new PostgreSqlContainer("postgis/postgis:17-3.6-alpine")
+      .withPlatform("linux/amd64")
       .withDatabase("mappy_test")
       .withUsername("mappy")
       .withPassword("mappy_test_password")

@@ -86,7 +86,10 @@ describe("XTimelineHttpClient", () => {
       signal: new AbortController().signal,
     });
 
-    await expect(promise).rejects.toMatchObject<XApiError>({
+    const error: unknown = await promise.catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(XApiError);
+    expect(error).toMatchObject({
       name: "XApiError",
       status: 429,
       retryable: true,
