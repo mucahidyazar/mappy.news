@@ -15,6 +15,7 @@ const makePost = (id: string) => ({
   createdAt: "2026-07-12T08:00:00.000Z",
   editHistoryPostIds: [id],
   referencedPosts: [],
+  raw: { id, text: `post ${id}` },
 });
 
 const page = (
@@ -95,6 +96,21 @@ describe("reconcileUserTimeline", () => {
       sinceId: "1900000000000000100",
       reconciledAt: "2026-07-12T08:10:00.000Z",
     });
+    expect(dependencies.repository.persistBatch).toHaveBeenNthCalledWith(
+      1,
+      expect.arrayContaining([
+        expect.objectContaining({
+          channel: "user_timeline",
+          receivedAt: "2026-07-12T08:10:00.000Z",
+          post: expect.objectContaining({
+            raw: {
+              id: "1900000000000000100",
+              text: "post 1900000000000000100",
+            },
+          }),
+        }),
+      ]),
+    );
     expect(result).toMatchObject({ pages: 2, received: 4, watermark: "1900000000000000100" });
   });
 

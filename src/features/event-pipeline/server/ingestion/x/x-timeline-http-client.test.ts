@@ -61,6 +61,13 @@ describe("XTimelineHttpClient", () => {
     expect(url.searchParams.get("max_results")).toBe("100");
     expect(request.headers).toEqual({ Authorization: "Bearer test-bearer-token" });
     expect(result.posts[0]?.id).toBe("1900123456789012345");
+    expect(result.posts[0]?.raw).toEqual({
+      id: "1900123456789012345",
+      author_id: "1800123456789012345",
+      text: "Taksim'de yol kapalı",
+      created_at: "2026-07-12T08:00:00.000Z",
+      edit_history_tweet_ids: ["1900123456789012345"],
+    });
     expect(result.nextToken).toBe("next-page");
     expect(result.rateLimit.remaining).toBe(42);
   });
