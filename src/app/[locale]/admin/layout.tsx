@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import type { ReactNode } from "react";
 
+import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { Container } from "@/components/layout/container";
 import { LocaleSwitcher } from "@/components/layout/locale-switcher";
@@ -12,10 +13,10 @@ import { UserMenu } from "@/components/layout/user-menu";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import type { Locale } from "@/i18n/routing";
-import { isStaff } from "@/lib/auth/permissions";
+import { can, isStaff } from "@/lib/auth/permissions";
 import { getCurrentUser } from "@/lib/auth/session";
 import { localizedPath } from "@/lib/site";
-import { getAdminBadges } from "@/server/admin/badges";
+import { getAdminBadges, getSidebarBot } from "@/server/admin/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -32,16 +33,21 @@ export default async function AdminLayout({ children, params }: { children: Reac
   if (!user) redirect(`${localizedPath("/sign-in", locale as Locale)}?next=${encodeURIComponent(localizedPath("/admin", locale as Locale))}`);
   if (!isStaff(user.role)) notFound();
 
-  const [badges, cookieStore] = await Promise.all([getAdminBadges(), cookies()]);
+  const [badges, bot, cookieStore] = await Promise.all([
+    getAdminBadges(),
+    can(user.role, "bot.view") ? getSidebarBot() : Promise.resolve(null),
+    cookies(),
+  ]);
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <AdminSidebar role={user.role} badges={badges} />
-      <SidebarInset className="min-w-0">
-        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
-          <SidebarTrigger />
-          <Separator orientation="vertical" className="mr-1 h-5" />
+      <AdminSidebar role={user.role} badges={badges} bot={bot} />
+      <SidebarInset className="min-w-0 bg-[radial-gradient(1100px_420px_at_70%_-160px,color-mix(in_oklch,var(--primary)_9%,transparent),transparent)]">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 bg-background/70 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+          <SidebarTrigger className="-ml-1.5 text-muted-foreground hover:text-foreground" />
+          <Separator orientation="vertical" className="mr-1.5 h-5" />
+          <AdminBreadcrumb />
           <div className="ml-auto flex items-center gap-1">
             <ThemeToggle />
             <LocaleSwitcher />

@@ -463,7 +463,15 @@
       "users": "Users",
       "categories": "Categories",
       "audit": "Audit log",
-      "backToSite": "Back to site"
+      "backToSite": "Back to site",
+      "desk": "Newsroom desk",
+      "breadcrumb": "Breadcrumb",
+      "detail": "Details",
+      "botState": {
+        "running": "Bot running",
+        "paused": "Bot paused",
+        "offline": "Bot offline"
+      }
     },
     "common": {
       "pagination": "Pages",
@@ -472,9 +480,7 @@
       "next": "Next"
     },
     "dashboard": {
-      "title": "Hi {name}",
-      "description": "Pending work, publishing activity and the news bot at a glance.",
-      "reviewNow": "Review {count, plural, one {# story} other {# stories}}",
+      "title": "Hi {name}.",
       "pending": "Waiting for review",
       "pendingHint": "{users, number} from readers · {bot, number} from the bot",
       "published": "Published in the last 24h",
@@ -490,17 +496,25 @@
         "admin": "Editors"
       },
       "botTitle": "News bot",
-      "botOffline": "Worker offline",
-      "botRunning": "Running",
-      "botPaused": "Paused",
-      "botToday": "Today: {stories, plural, one {# story} other {# stories}} · ${cost} AI spend",
       "openBot": "Open the bot panel",
       "activity": "Recent activity",
       "noActivity": "No activity in the last 14 days.",
-      "shortcuts": "Shortcuts",
-      "shortcutVerifications": "Location checks",
-      "shortcutComments": "Comment moderation",
-      "shortcutSources": "Bot sources"
+      "heroPending": "{count, plural, one {# story is waiting for you.} other {# stories are waiting for you.}}",
+      "heroOldest": "The oldest arrived {time}.",
+      "heroQuiet": "The queue is empty. {count, plural, one {# story} other {# stories}} went out in the last 24 hours.",
+      "startReview": "Start reviewing",
+      "openStories": "Go to stories",
+      "checkLocations": "{count, plural, one {# location check} other {# location checks}}",
+      "mapPublished": "published",
+      "mapPending": "waiting",
+      "mapRange": "last 7 days",
+      "mapLabel": "Map of Türkiye with waiting stories and those published in the last 7 days",
+      "tooltipPending": "In review",
+      "tooltipPublished": "Published",
+      "summary": "Summary",
+      "chartTotal": "{count, plural, one {# story} other {# stories}} in total",
+      "today": "Today",
+      "spend": "AI spend today"
     },
     "review": {
       "title": "Review queue",

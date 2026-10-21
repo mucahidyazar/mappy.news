@@ -463,7 +463,15 @@
       "users": "Kullanıcılar",
       "categories": "Kategoriler",
       "audit": "Denetim kaydı",
-      "backToSite": "Siteye dön"
+      "backToSite": "Siteye dön",
+      "desk": "Yayın masası",
+      "breadcrumb": "Sayfa konumu",
+      "detail": "Ayrıntı",
+      "botState": {
+        "running": "Bot çalışıyor",
+        "paused": "Bot duraklatıldı",
+        "offline": "Bot çevrimdışı"
+      }
     },
     "common": {
       "pagination": "Sayfalar",
@@ -472,9 +480,7 @@
       "next": "Sonraki"
     },
     "dashboard": {
-      "title": "Merhaba {name}",
-      "description": "Bekleyen işler, yayın akışı ve haber botunun durumu.",
-      "reviewNow": "{count, number} haberi incele",
+      "title": "Merhaba {name}.",
       "pending": "İnceleme bekleyen",
       "pendingHint": "{users, number} okur · {bot, number} bot",
       "published": "Son 24 saatte yayın",
@@ -490,17 +496,25 @@
         "admin": "Editör"
       },
       "botTitle": "Haber botu",
-      "botOffline": "Worker çevrimdışı",
-      "botRunning": "Çalışıyor",
-      "botPaused": "Duraklatıldı",
-      "botToday": "Bugün {stories, number} haber · ${cost} AI harcaması",
       "openBot": "Bot paneline git",
       "activity": "Son işlemler",
       "noActivity": "Son 14 günde işlem yok.",
-      "shortcuts": "Kısayollar",
-      "shortcutVerifications": "Konum doğrulamaları",
-      "shortcutComments": "Yorum moderasyonu",
-      "shortcutSources": "Bot kaynakları"
+      "heroPending": "{count, number} haber seni bekliyor.",
+      "heroOldest": "En eskisi {time} geldi.",
+      "heroQuiet": "Kuyruk boş. Son 24 saatte {count, number} haber yayınlandı.",
+      "startReview": "İncelemeye başla",
+      "openStories": "Haberlere git",
+      "checkLocations": "{count, number} konum doğrulaması",
+      "mapPublished": "yayında",
+      "mapPending": "bekliyor",
+      "mapRange": "son 7 gün",
+      "mapLabel": "Bekleyen haberlerin ve son 7 günde yayınlananların Türkiye haritası",
+      "tooltipPending": "İncelemede",
+      "tooltipPublished": "Yayında",
+      "summary": "Özet",
+      "chartTotal": "Toplam {count, number} haber",
+      "today": "Bugün",
+      "spend": "Bugünkü AI harcaması"
     },
     "review": {
       "title": "İnceleme kuyruğu",

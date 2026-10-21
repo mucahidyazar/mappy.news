@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+    <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="space-y-1.5">
+        <h1 className="font-display text-[1.75rem] leading-tight font-bold tracking-[-0.02em]">{title}</h1>
         {description ? <p className="max-w-2xl text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -19,7 +19,7 @@ export function StatCard({ label, value, hint, icon }: { label: string; value: R
         <span>{label}</span>
         {icon ? <span className="[&_svg]:size-4">{icon}</span> : null}
       </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-2 font-display text-[1.75rem] leading-none font-bold tracking-tight tabular-nums">{value}</p>
       {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
     </div>
   );

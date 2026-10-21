@@ -59,10 +59,13 @@
   --sidebar-ring: oklch(0.45 0.12 258);
   --brand: #022859;
   --glass: oklch(1 0 0 / 0.82);
+  /* Admin desk map: the hero card is the map's sea color (see components/admin/dashboard/desk-map.tsx). */
+  --desk-sea: #e9eff8;
+  --desk-pending: #dd8500;
 }
 
 .dark {
-  --background: oklch(0.16 0.02 258);
+  --background: oklch(0.15 0.024 259);
   --foreground: oklch(0.95 0.008 250);
   --card: oklch(0.2 0.025 258);
   --card-foreground: oklch(0.95 0.008 250);
@@ -88,7 +91,7 @@
   --chart-3: oklch(0.8 0.15 75);
   --chart-4: oklch(0.68 0.19 25);
   --chart-5: oklch(0.7 0.15 155);
-  --sidebar: oklch(0.18 0.022 258);
+  --sidebar: oklch(0.17 0.026 259);
   --sidebar-foreground: oklch(0.95 0.008 250);
   --sidebar-primary: oklch(0.78 0.1 250);
   --sidebar-primary-foreground: oklch(0.18 0.04 258);
@@ -98,11 +101,29 @@
   --sidebar-ring: oklch(0.7 0.1 250);
   --brand: #8fb4ff;
   --glass: oklch(0.2 0.025 258 / 0.82);
+  --desk-sea: #0a1322;
+  --desk-pending: #ffb547;
+}
+
+/* Raised surfaces: a soft navy shadow by day, a hairline top light by night. */
+@utility shadow-surface {
+  box-shadow:
+    0 1px 2px oklch(0.29 0.1 258 / 0.04),
+    0 14px 36px -20px oklch(0.29 0.1 258 / 0.16);
+  &:where(.dark, .dark *) {
+    box-shadow:
+      inset 0 1px 0 0 oklch(1 0 0 / 0.045),
+      0 22px 48px -28px oklch(0 0 0 / 0.7);
+  }
 }
 
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* Schibsted Grotesk was drawn for a news publisher; used for headings and figures. */
+  --font-display: "Schibsted Grotesk Variable", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --color-desk-sea: var(--desk-sea);
+  --color-desk-pending: var(--desk-pending);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

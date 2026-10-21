@@ -52,5 +52,5 @@ export function PageIntro({
 
 /** Standard surface for grouped content. */
 export function Panel({ className, ...props }: ComponentProps<"section">) {
-  return <section className={cn("rounded-2xl border bg-card p-5", className)} {...props} />;
+  return <section className={cn("rounded-2xl border bg-card p-5 shadow-surface", className)} {...props} />;
 }

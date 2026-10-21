@@ -1,23 +1,10 @@
 "use client";
 
-import {
-  Activity,
-  ArrowLeft,
-  FileClock,
-  Inbox,
-  LayoutDashboard,
-  ListTree,
-  MapPinCheck,
-  MessageSquare,
-  Newspaper,
-  Rss,
-  Settings2,
-  Shapes,
-  Users,
-} from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 
-import { Logo } from "@/components/layout/logo";
+import { RelativeTime } from "@/components/news/relative-time";
 import {
   Sidebar,
   SidebarContent,
@@ -33,90 +20,65 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Link, usePathname } from "@/i18n/navigation";
-import { can, type Permission } from "@/lib/auth/permissions";
+import { can } from "@/lib/auth/permissions";
+import { cn } from "@/lib/utils";
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: typeof Inbox;
-  permission: Permission;
-  badge?: number;
-  exact?: boolean;
-}
+import { ADMIN_NAV, type AdminBadges, isActiveItem, type SidebarBotState } from "./nav";
 
-export function AdminSidebar({
-  role,
-  badges,
-}: {
-  role: string;
-  badges: { pendingNews: number; pendingVerifications: number; failedItems: number };
-}) {
+const BADGE_TONE = {
+  attention: "bg-warning/15 text-warning",
+  info: "bg-sidebar-primary/15 text-sidebar-primary",
+  danger: "bg-destructive/15 text-destructive",
+} as const;
+
+const BOT_DOT = { running: "bg-success", paused: "bg-warning", offline: "bg-destructive" } as const;
+
+/** The active item gets a slim bar on its left edge and a tinted icon. */
+const ITEM_CLASS =
+  "relative h-9 gap-2.5 rounded-lg text-[13.5px] text-sidebar-foreground/80 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-sidebar-primary before:opacity-0 before:transition-opacity data-active:text-sidebar-accent-foreground data-active:before:opacity-100 data-active:[&>svg]:text-sidebar-primary";
+
+export function AdminSidebar({ role, badges, bot }: { role: string; badges: AdminBadges; bot: SidebarBotState | null }) {
   const t = useTranslations("admin.nav");
   const pathname = usePathname();
 
-  const groups: { label: string; items: NavItem[] }[] = [
-    {
-      label: t("overview"),
-      items: [{ href: "/admin", label: t("dashboard"), icon: LayoutDashboard, permission: "admin.access", exact: true }],
-    },
-    {
-      label: t("content"),
-      items: [
-        { href: "/admin/review", label: t("review"), icon: Inbox, permission: "news.review", badge: badges.pendingNews },
-        { href: "/admin/news", label: t("news"), icon: Newspaper, permission: "news.review" },
-        { href: "/admin/verifications", label: t("verifications"), icon: MapPinCheck, permission: "verifications.review", badge: badges.pendingVerifications },
-        { href: "/admin/comments", label: t("comments"), icon: MessageSquare, permission: "comments.moderate" },
-      ],
-    },
-    {
-      label: t("bot"),
-      items: [
-        { href: "/admin/bot", label: t("botStatus"), icon: Activity, permission: "bot.view", exact: true },
-        { href: "/admin/bot/sources", label: t("botSources"), icon: Rss, permission: "bot.view" },
-        { href: "/admin/bot/items", label: t("botItems"), icon: ListTree, permission: "bot.view", badge: badges.failedItems },
-        { href: "/admin/bot/settings", label: t("botSettings"), icon: Settings2, permission: "bot.manage" },
-      ],
-    },
-    {
-      label: t("management"),
-      items: [
-        { href: "/admin/users", label: t("users"), icon: Users, permission: "users.manage" },
-        { href: "/admin/categories", label: t("categories"), icon: Shapes, permission: "categories.manage" },
-        { href: "/admin/audit", label: t("audit"), icon: FileClock, permission: "audit.view" },
-      ],
-    },
-  ];
-
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="h-14 justify-center border-b px-3">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <Logo compact />
-          <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary uppercase group-data-[collapsible=icon]:hidden">
-            admin
+      <SidebarHeader className="h-16 justify-center px-3">
+        <Link href="/admin" className="flex items-center gap-2.5 overflow-hidden rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50">
+          <Image src="/brand/web-app-manifest-192x192.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-[9px] shadow-sm ring-1 ring-black/5" />
+          <span className="flex min-w-0 flex-col leading-none group-data-[collapsible=icon]:hidden">
+            <span className="font-display text-[15px] font-bold tracking-tight">
+              mappy<span className="text-sidebar-foreground/50">.news</span>
+            </span>
+            <span className="mt-1 font-mono text-[9.5px] tracking-[0.18em] text-sidebar-foreground/45 uppercase">{t("desk")}</span>
           </span>
-        </div>
+        </Link>
       </SidebarHeader>
-      <SidebarContent>
-        {groups.map((group) => {
+
+      <SidebarContent className="gap-0 px-1">
+        {ADMIN_NAV.map((group) => {
           const items = group.items.filter((item) => can(role, item.permission));
           if (items.length === 0) return null;
           return (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroup key={group.label} className="py-1.5">
+              <SidebarGroupLabel className="h-7 font-mono text-[10px] tracking-[0.16em] text-sidebar-foreground/40 uppercase">{t(group.label)}</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="gap-0.5">
                   {items.map((item) => {
-                    const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    const count = item.badge ? badges[item.badge.key] : 0;
                     return (
                       <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                        <SidebarMenuButton asChild isActive={isActiveItem(item, pathname)} tooltip={t(item.label)} className={ITEM_CLASS}>
                           <Link href={item.href}>
                             <item.icon />
-                            <span>{item.label}</span>
+                            <span>{t(item.label)}</span>
                           </Link>
                         </SidebarMenuButton>
-                        {item.badge ? <SidebarMenuBadge>{item.badge > 99 ? "99+" : item.badge}</SidebarMenuBadge> : null}
+                        {item.badge && count ? (
+                          <SidebarMenuBadge className={cn("top-2 rounded-full px-1.5 font-mono text-[10.5px]", BADGE_TONE[item.badge.tone])}>
+                            {count > 99 ? "99+" : count}
+                          </SidebarMenuBadge>
+                        ) : null}
                       </SidebarMenuItem>
                     );
                   })}
@@ -126,10 +88,27 @@ export function AdminSidebar({
           );
         })}
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
+
+      <SidebarFooter className="gap-1 border-t border-sidebar-border/70 px-2 py-3">
+        <SidebarMenu className="gap-0.5">
+          {bot ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip={t(`botState.${bot.state}`)} className="h-auto min-h-10 gap-2.5 rounded-lg py-2">
+                <Link href="/admin/bot">
+                  <span className="relative flex size-4 shrink-0 items-center justify-center" aria-hidden>
+                    {bot.state === "running" ? <span className="absolute size-2.5 animate-ping rounded-full bg-success/60 motion-reduce:hidden" /> : null}
+                    <span className={cn("relative size-2 rounded-full", BOT_DOT[bot.state])} />
+                  </span>
+                  <span className="flex min-w-0 flex-col leading-tight">
+                    <span className="truncate text-[13px] font-medium">{t(`botState.${bot.state}`)}</span>
+                    {bot.heartbeatAt ? <RelativeTime value={bot.heartbeatAt} className="truncate font-mono text-[10.5px] text-sidebar-foreground/50" /> : null}
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip={t("backToSite")}>
+            <SidebarMenuButton asChild tooltip={t("backToSite")} className="h-9 gap-2.5 rounded-lg text-[13px] text-sidebar-foreground/70">
               <Link href="/">
                 <ArrowLeft />
                 <span>{t("backToSite")}</span>
