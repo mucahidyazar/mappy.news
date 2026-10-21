@@ -1,414 +1,204 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * State variants of the shadcn (radix-vega) components. Radix exposes state as data-state and data-orientation,
+ * other libraries as boolean data attributes that can also be "false" (which must not count as set).
+ */
+@custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
+@custom-variant data-checked (&:where([data-state="checked"], [data-checked]:not([data-checked="false"])));
+@custom-variant data-unchecked (&:where([data-state="unchecked"], [data-unchecked]:not([data-unchecked="false"])));
+@custom-variant data-active (&:where([data-state="active"], [data-active]:not([data-active="false"])));
+@custom-variant data-selected (&:where([data-selected]:not([data-selected="false"])));
+@custom-variant data-disabled (&:where([data-disabled]:not([data-disabled="false"])));
+@custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
+@custom-variant data-vertical (&:where([data-orientation="vertical"]));
+
+/*
+ * Theme tokens. The brand is the navy of the mappy.news logo; incident categories carry their own colors
+ * (stored in the database) and are applied inline on markers and badges.
+ */
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.003 247);
+  --foreground: oklch(0.2 0.03 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.03 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.03 255);
+  --primary: oklch(0.29 0.1 258);
+  --primary-foreground: oklch(0.985 0.003 247);
+  --secondary: oklch(0.955 0.01 250);
+  --secondary-foreground: oklch(0.26 0.06 258);
+  --muted: oklch(0.955 0.008 250);
+  --muted-foreground: oklch(0.5 0.025 255);
+  --accent: oklch(0.94 0.02 250);
+  --accent-foreground: oklch(0.26 0.06 258);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.6 0.15 155);
+  --warning: oklch(0.75 0.16 70);
+  --border: oklch(0.91 0.01 250);
+  --input: oklch(0.91 0.01 250);
+  --ring: oklch(0.45 0.12 258);
+  --chart-1: oklch(0.45 0.14 258);
+  --chart-2: oklch(0.65 0.15 200);
+  --chart-3: oklch(0.7 0.16 70);
+  --chart-4: oklch(0.6 0.2 27);
+  --chart-5: oklch(0.6 0.15 155);
+  --sidebar: oklch(0.975 0.005 250);
+  --sidebar-foreground: oklch(0.2 0.03 255);
+  --sidebar-primary: oklch(0.29 0.1 258);
+  --sidebar-primary-foreground: oklch(0.985 0.003 247);
+  --sidebar-accent: oklch(0.93 0.015 250);
+  --sidebar-accent-foreground: oklch(0.26 0.06 258);
+  --sidebar-border: oklch(0.91 0.01 250);
+  --sidebar-ring: oklch(0.45 0.12 258);
+  --brand: #022859;
+  --glass: oklch(1 0 0 / 0.82);
+}
+
+.dark {
+  --background: oklch(0.16 0.02 258);
+  --foreground: oklch(0.95 0.008 250);
+  --card: oklch(0.2 0.025 258);
+  --card-foreground: oklch(0.95 0.008 250);
+  --popover: oklch(0.2 0.025 258);
+  --popover-foreground: oklch(0.95 0.008 250);
+  --primary: oklch(0.78 0.1 250);
+  --primary-foreground: oklch(0.18 0.04 258);
+  --secondary: oklch(0.26 0.03 258);
+  --secondary-foreground: oklch(0.95 0.008 250);
+  --muted: oklch(0.25 0.025 258);
+  --muted-foreground: oklch(0.7 0.02 250);
+  --accent: oklch(0.28 0.035 258);
+  --accent-foreground: oklch(0.95 0.008 250);
+  --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.7 0.15 155);
+  --warning: oklch(0.8 0.15 75);
+  --border: oklch(1 0 0 / 0.1);
+  --input: oklch(1 0 0 / 0.14);
+  --ring: oklch(0.7 0.1 250);
+  --chart-1: oklch(0.72 0.12 250);
+  --chart-2: oklch(0.72 0.13 200);
+  --chart-3: oklch(0.8 0.15 75);
+  --chart-4: oklch(0.68 0.19 25);
+  --chart-5: oklch(0.7 0.15 155);
+  --sidebar: oklch(0.18 0.022 258);
+  --sidebar-foreground: oklch(0.95 0.008 250);
+  --sidebar-primary: oklch(0.78 0.1 250);
+  --sidebar-primary-foreground: oklch(0.18 0.04 258);
+  --sidebar-accent: oklch(0.26 0.03 258);
+  --sidebar-accent-foreground: oklch(0.95 0.008 250);
+  --sidebar-border: oklch(1 0 0 / 0.1);
+  --sidebar-ring: oklch(0.7 0.1 250);
+  --brand: #8fb4ff;
+  --glass: oklch(0.2 0.025 258 / 0.82);
+}
+
 @theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand: var(--brand);
+  --color-glass: var(--glass);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
-  /* Theme System Colors */
-  --color-theme-primary-50: var(--theme-primary-50);
-  --color-theme-primary-100: var(--theme-primary-100);
-  --color-theme-primary-200: var(--theme-primary-200);
-  --color-theme-primary-300: var(--theme-primary-300);
-  --color-theme-primary-400: var(--theme-primary-400);
-  --color-theme-primary-500: var(--theme-primary-500);
-  --color-theme-primary-600: var(--theme-primary-600);
-  --color-theme-primary-700: var(--theme-primary-700);
-  --color-theme-primary-800: var(--theme-primary-800);
-  --color-theme-primary-900: var(--theme-primary-900);
-  --color-theme-primary-950: var(--theme-primary-950);
-
-  --color-theme-secondary-50: var(--theme-secondary-50);
-  --color-theme-secondary-100: var(--theme-secondary-100);
-  --color-theme-secondary-200: var(--theme-secondary-200);
-  --color-theme-secondary-300: var(--theme-secondary-300);
-  --color-theme-secondary-400: var(--theme-secondary-400);
-  --color-theme-secondary-500: var(--theme-secondary-500);
-  --color-theme-secondary-600: var(--theme-secondary-600);
-  --color-theme-secondary-700: var(--theme-secondary-700);
-  --color-theme-secondary-800: var(--theme-secondary-800);
-  --color-theme-secondary-900: var(--theme-secondary-900);
-  --color-theme-secondary-950: var(--theme-secondary-950);
-
-  --color-theme-bg-primary: var(--theme-bg-primary);
-  --color-theme-bg-secondary: var(--theme-bg-secondary);
-  --color-theme-bg-tertiary: var(--theme-bg-tertiary);
-  --color-theme-bg-overlay: var(--theme-bg-overlay);
-
-  --color-theme-surface-primary: var(--theme-surface-primary);
-  --color-theme-surface-secondary: var(--theme-surface-secondary);
-  --color-theme-surface-tertiary: var(--theme-surface-tertiary);
-  --color-theme-surface-elevated: var(--theme-surface-elevated);
-
-  --color-theme-text-primary: var(--theme-text-primary);
-  --color-theme-text-secondary: var(--theme-text-secondary);
-  --color-theme-text-tertiary: var(--theme-text-tertiary);
-  --color-theme-text-inverse: var(--theme-text-inverse);
-
-  --color-theme-border-primary: var(--theme-border-primary);
-  --color-theme-border-secondary: var(--theme-border-secondary);
-  --color-theme-border-focus: var(--theme-border-focus);
-  --color-theme-border-error: var(--theme-border-error);
-  --color-theme-border-success: var(--theme-border-success);
-
-  --color-theme-state-error: var(--theme-state-error);
-  --color-theme-state-warning: var(--theme-state-warning);
-  --color-theme-state-success: var(--theme-state-success);
-  --color-theme-state-info: var(--theme-state-info);
-}
-
-:root {
-  --radius: 0.3125rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: var(--color-theme-border-primary);
-  --input: var(--color-theme-border-primary);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --radius-2xl: calc(var(--radius) + 8px);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    @apply bg-primary/20;
   }
 }
 
-@layer utilities {
-  .line-clamp-2 {
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+@utility glass-panel {
+  @apply border border-border/60 bg-glass shadow-lg shadow-black/5 backdrop-blur-xl;
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* MapLibre controls follow the theme. */
+.maplibregl-ctrl-group {
+  @apply !rounded-lg !border !border-border !bg-card !shadow-md;
+}
+.maplibregl-ctrl-group button + button {
+  @apply !border-t-border;
+}
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+.maplibregl-ctrl-attrib {
+  @apply !bg-card/80 !text-[10px] !text-muted-foreground;
+}
+.maplibregl-ctrl-attrib a {
+  @apply !text-muted-foreground;
+}
+.maplibregl-popup-content {
+  @apply !rounded-xl !border !border-border !bg-popover !p-0 !text-popover-foreground !shadow-xl;
+}
+.maplibregl-popup-tip {
+  @apply !hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
-
-  .line-clamp-3 {
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-  }
-
-  .animate-fade-in {
-    animation: fadeIn 1s ease-in-out;
-  }
-
-  .animate-wave {
-    animation: wave 2s ease-in-out infinite;
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes wave {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  25% {
-    transform: translateY(-3px);
-  }
-  50% {
-    transform: translateY(0);
-  }
-  75% {
-    transform: translateY(-1px);
-  }
-}
-
-/* Date picker range selection styles */
-.rdp-range_start,
-.rdp-range_end {
-  background-color: var(--color-theme-primary-500) !important;
-  color: var(--color-theme-text-inverse) !important;
-}
-
-.rdp-range_start:hover,
-.rdp-range_end:hover {
-  background-color: var(--color-theme-primary-600) !important;
-}
-
-.rdp-range_middle {
-  background-color: var(--color-theme-primary-100) !important;
-  color: var(--color-theme-primary-800) !important;
-}
-
-.rdp-range_middle:hover {
-  background-color: var(--color-theme-primary-200) !important;
-}
-
-.rdp-selected {
-  background-color: var(--color-theme-primary-500) !important;
-  color: var(--color-theme-text-inverse) !important;
-}
-
-.rdp-today {
-  background-color: var(--color-theme-primary-50) !important;
-  color: var(--color-theme-primary-800) !important;
-  font-weight: 600 !important;
-}
-
-/* Buy Me A Coffee widget z-index */
-#bmc-wbtn {
-  z-index: 9999 !important;
-}
-
-/* Buy Me A Coffee widget container */
-.bmc-widget-container {
-  z-index: 9999 !important;
-}
-
-/* All BMC related elements */
-[id*='bmc'],
-[class*='bmc'] {
-  z-index: 9999 !important;
-}
-
-.leaflet-popup-content-wrapper {
-  border-radius: 4px !important;
-}
-
-.leaflet-popup-content {
-  margin: 4px 12px 12px 12px !important;
-}
-
-.leaflet-popup-content p {
-  margin: 0 !important;
-}
-
-.calendar-grid thead,
-.calendar-grid tbody,
-.calendar-grid thead tr,
-.calendar-grid thead tr th,
-.calendar-grid tbody tr {
-  width: 100% !important;
-}
-
-/* Globe Loading Animation */
-.globe-container {
-  perspective: 1000px;
-  width: 200px;
-  height: 200px;
-  position: relative;
-}
-
-.globe {
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: linear-gradient(
-    45deg,
-    rgba(59, 130, 246, 0.8) 0%,
-    rgba(37, 99, 235, 0.9) 50%,
-    rgba(29, 78, 216, 1) 100%
-  );
-  position: relative;
-  animation: rotate-globe 4s linear infinite;
-  box-shadow: 
-    0 0 20px rgba(59, 130, 246, 0.5),
-    inset 0 0 20px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-}
-
-.globe::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(
-    circle at 30% 30%,
-    rgba(255, 255, 255, 0.3) 0%,
-    transparent 50%
-  );
-  border-radius: 50%;
-}
-
-.world-map {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  overflow: hidden;
-}
-
-.continents {
-  animation: drift-continents 8s linear infinite;
-}
-
-@keyframes rotate-globe {
-  0% {
-    transform: rotateY(0deg);
-  }
-  100% {
-    transform: rotateY(360deg);
-  }
-}
-
-@keyframes drift-continents {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-20px);
-  }
-}
-
-@keyframes icon-drop {
-  0% {
-    transform: translateY(-100px) scale(0);
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) scale(1);
-    opacity: 1;
-  }
-}
-
-.animate-icon-drop {
-  animation: icon-drop 2s ease-out forwards;
-  animation-fill-mode: both;
-}
-
-/* ArcGIS Globe Styles - from Globe of Extremes */
-.arcgis-globe-container {
-  font-family: "Avenir Next","Helvetica Neue",Helvetica,Arial,sans-serif;
-}
-
-.arcgis-globe-canvas {
-  filter: saturate(1.2) drop-shadow(0 0 20px white);
-}
-
-/* Hide ArcGIS UI elements */
-.esri-view .esri-ui-bottom-left,
-.esri-view .esri-ui-bottom-right {
-  display: none !important;
-}
-
-.esri-view .esri-ui-top-left,
-.esri-view .esri-ui-top-right {
-  display: none !important;
-}
-
-.esri-attribution {
-  display: none !important;
-}
-
-.esri-zoom,
-.esri-navigation-toggle,
-.esri-compass {
-  display: none !important;
 }

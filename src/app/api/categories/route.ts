@@ -1,15 +1,16 @@
-import { NextResponse } from 'next/server'
-import { getCategories } from '@/lib/supabase-helpers'
+import { NextResponse } from "next/server";
+
+import { getCategories } from "@/server/categories";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const categories = await getCategories()
-    return NextResponse.json(categories)
+    return NextResponse.json(await getCategories(), {
+      headers: { "Cache-Control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400" },
+    });
   } catch (error) {
-    console.error('Error fetching categories:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch categories' },
-      { status: 500 }
-    )
+    console.error("[api/categories]", error);
+    return NextResponse.json({ error: "unavailable" }, { status: 503 });
   }
 }

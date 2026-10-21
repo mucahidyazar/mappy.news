@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mappy-web",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": ["DATABASE_URL=postgres://mappy:mappy@localhost:54329/mappy_news", "pnpm", "dev", "--port", "3000"],
+      "port": 3000
+    }
+  ]
+}

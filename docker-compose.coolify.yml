@@ -1,0 +1,75 @@
+# Production stack for Coolify (Docker Compose build pack). PostgreSQL runs outside this stack: DATABASE_URL
+# points at the server's database (mappy_news). Put the web service's domain on port 3000 in Coolify.
+#
+#   migrate  runs first on every deploy: migrations + idempotent seed (never overwrites admin edits)
+#   web      the site, admin panel and API
+#   worker   the news bot; exactly one runs per database (advisory lock)
+
+x-server-env: &server-env
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL}
+  APP_URL: ${APP_URL:-https://mappy.news}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://mappy.news}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  EMAIL_FROM: ${EMAIL_FROM:-mappy.news <noreply@mappy.news>}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+  GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  XAI_API_KEY: ${XAI_API_KEY:-}
+  X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
+  CRON_SECRET: ${CRON_SECRET:-}
+  NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org}
+  GEOCODER_CONTACT_EMAIL: ${GEOCODER_CONTACT_EMAIL:-}
+  SOURCE_COMMIT: ${SOURCE_COMMIT:-}
+
+services:
+  migrate:
+    build:
+      context: .
+      target: migrate
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      SEED_X_ACCOUNTS: ${SEED_X_ACCOUNTS:-}
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://mappy.news}
+        NEXT_PUBLIC_CONTACT_EMAIL: ${NEXT_PUBLIC_CONTACT_EMAIL:-}
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *server-env
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NODE_OPTIONS: --max-old-space-size=512
+    expose:
+      - "3000"
+    cpus: "0.5"
+    mem_limit: 768m
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *server-env
+      NODE_OPTIONS: --max-old-space-size=256
+    cpus: "0.25"
+    mem_limit: 384m

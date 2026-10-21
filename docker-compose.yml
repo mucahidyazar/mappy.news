@@ -1,0 +1,24 @@
+# Local development services. The app and the worker run on the host with `pnpm dev` and `pnpm worker:dev`.
+#   pnpm db:up   → PostgreSQL on localhost:54329 (database mappy_news, user/password mappy)
+name: mappy-news
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mappy_news
+      POSTGRES_USER: mappy
+      POSTGRES_PASSWORD: mappy
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mappy -d mappy_news"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:
