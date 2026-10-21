@@ -30,10 +30,10 @@ export function locationColumns(location: NewsLocationFields, sensitive: boolean
     precision: location.precision,
     sensitive,
   });
+  const areaLabel = formatLocationLabel({ neighborhood: location.neighborhood, district: location.district, province: location.province });
   return {
-    locationLabel:
-      location.label?.trim() ||
-      formatLocationLabel({ neighborhood: location.neighborhood, district: location.district, province: location.province }),
+    // A sensitive story's label never names the street or building, only the area.
+    locationLabel: sensitive ? areaLabel : location.label?.trim() || areaLabel,
     locationMention: location.mention ?? null,
     province: location.province ?? null,
     district: location.district ?? null,

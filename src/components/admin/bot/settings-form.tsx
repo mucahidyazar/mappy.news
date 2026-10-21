@@ -33,6 +33,7 @@ function Percent({ value }: { value: number }) {
 
 export function BotSettingsForm({ initial, providers, xConfigured }: { initial: BotSettings; providers: Record<AiProvider, boolean>; xConfigured: boolean }) {
   const t = useTranslations("admin.botSettings");
+  const tPrecision = useTranslations("precision");
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const [settings, setSettings] = useState<BotSettings>(initial);
@@ -267,6 +268,25 @@ export function BotSettingsForm({ initial, providers, xConfigured }: { initial: 
                     <Percent value={settings.autoPublish.minLocationConfidence} />
                   </div>
                   <Slider min={0.3} max={1} step={0.05} value={[settings.autoPublish.minLocationConfidence]} onValueChange={([value]) => patch("autoPublish", { minLocationConfidence: value ?? 0.75 })} />
+                </Field>
+                <Field>
+                  <FieldLabel>{t("autoMinPrecision")}</FieldLabel>
+                  <Select
+                    value={settings.autoPublish.minPrecision}
+                    onValueChange={(minPrecision) => patch("autoPublish", { minPrecision: minPrecision as BotSettings["autoPublish"]["minPrecision"] })}
+                  >
+                    <SelectTrigger className="w-full sm:w-64">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["exact", "street", "neighborhood", "district"] as const).map((precision) => (
+                        <SelectItem key={precision} value={precision}>
+                          {tPrecision(`long.${precision}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>{t("autoMinPrecisionHint")}</FieldDescription>
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="auto-limit">{t("dailyLimit")}</FieldLabel>

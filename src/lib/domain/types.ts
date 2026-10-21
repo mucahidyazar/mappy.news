@@ -29,7 +29,14 @@ export interface BotAnalysis {
     district: string | null;
     neighborhood: string | null;
     street: string | null;
+    /** Only when the text gives it. */
+    houseNumber?: string | null;
+    /** The other street at an intersection. */
+    crossStreet?: string | null;
     place: string | null;
+    /** Highway or road of a traffic incident, and which part of it ("Avcılar mevkii", "45. km"). */
+    road?: string | null;
+    roadSection?: string | null;
     precision: LocationPrecision;
     confidence: number;
     evidence: string;
@@ -52,6 +59,8 @@ export interface GeocodeResult {
   district: string | null;
   neighborhood: string | null;
   provider: string;
+  /** How the bot found the point: address, junction, place, street, road, neighborhood, district, city. */
+  method?: string;
 }
 
 export interface ParentSuggestion {

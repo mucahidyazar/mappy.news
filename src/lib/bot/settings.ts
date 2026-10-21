@@ -86,10 +86,12 @@ export const botSettingsSchema = z.object({
       until: z.string().datetime().nullable().default(null),
       minScore: z.number().min(0).max(1).default(0.75),
       minLocationConfidence: z.number().min(0).max(1).default(0.75),
+      /** Stories placed more coarsely than this always wait for an editor. */
+      minPrecision: z.enum(["exact", "street", "neighborhood", "district"]).default("neighborhood"),
       allowSensitive: z.boolean().default(false),
       dailyLimit: z.number().int().min(0).max(1000).default(40),
     })
-    .default({ mode: "off", until: null, minScore: 0.75, minLocationConfidence: 0.75, allowSensitive: false, dailyLimit: 40 }),
+    .default({ mode: "off", until: null, minScore: 0.75, minLocationConfidence: 0.75, minPrecision: "neighborhood", allowSensitive: false, dailyLimit: 40 }),
   x: z
     .object({
       /** Posts read per UTC day across all X accounts (X bills per read). */

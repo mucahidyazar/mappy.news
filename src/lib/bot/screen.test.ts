@@ -50,8 +50,9 @@ describe("screenEntry", () => {
     expect(screen("Kaza var")).toEqual({ pass: false, reason: "too_short" });
   });
 
-  it("never sends blocked topics to the model, even from official sources", () => {
-    expect(screen("Köprüde intihar girişiminde bulunan kişi ikna edildi", { trust: "official" })).toMatchObject({ pass: false, reason: "blocked_topic" });
+  it("lets suicides through to the model", () => {
+    expect(screen("Köprüde intihar girişiminde bulunan kişi ikna edildi")).toMatchObject({ pass: true, matched: "intihar" });
+    expect(screen("Apartmanın bodrum katında bir kişinin cansız bedeni bulundu")).toMatchObject({ pass: true });
   });
 
   it("lets official sources skip the keyword prefilter", () => {

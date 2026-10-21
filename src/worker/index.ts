@@ -24,7 +24,7 @@ import { activePause, type BotContext, collect, maintain, type PassState, proces
 import { type BotSettings, readBotSettings, type WorkerState, type WorkerStatus } from "@/lib/bot/settings";
 import { CONTROL_CHANNEL, WORKER_LOCK_KEY, writeWorkerStatus } from "@/lib/bot/status";
 import * as schema from "@/lib/db/schema";
-import { createGeocoder, createNominatimClient } from "@/lib/geo/geocoder";
+import { createGeocoder, createGeocoderClients, databaseCache } from "@/lib/geo/geocoder";
 
 const VERSION = process.env.SOURCE_COMMIT?.slice(0, 12) || "dev";
 const COLLECT_EVERY_MS = 30_000;
@@ -54,9 +54,20 @@ async function main() {
   });
   const db = drizzle(sql, { schema, casing: "snake_case" });
   const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const env = (name: string, fallback: string) => process.env[name] ?? fallback;
   const geocoder = createGeocoder(
-    db,
-    createNominatimClient({ NOMINATIM_URL: process.env.NOMINATIM_URL || "https://nominatim.openstreetmap.org", GEOCODER_CONTACT_EMAIL: process.env.GEOCODER_CONTACT_EMAIL || undefined, APP_URL: appUrl }, 1_500),
+    databaseCache(db),
+    createGeocoderClients(
+      {
+        NOMINATIM_URL: env("NOMINATIM_URL", "") || "https://nominatim.openstreetmap.org",
+        // Unset means the public instance; an empty value switches the service off.
+        PHOTON_URL: env("PHOTON_URL", "https://photon.komoot.io") || undefined,
+        OVERPASS_URL: env("OVERPASS_URL", "") || undefined,
+        GEOCODER_CONTACT_EMAIL: process.env.GEOCODER_CONTACT_EMAIL || undefined,
+        APP_URL: appUrl,
+      },
+      { fast: ["1", "true", "yes", "on"].includes((process.env.GEOCODER_FAST ?? "").toLowerCase()) },
+    ),
   );
   const controller = new AbortController();
   const passState: PassState = {};

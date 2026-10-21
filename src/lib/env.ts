@@ -37,6 +37,12 @@ const serverSchema = z.object({
   X_BEARER_TOKEN: optionalString,
   CRON_SECRET: optionalString,
   NOMINATIM_URL: z.string().url().default("https://nominatim.openstreetmap.org"),
+  /** Photon (named places); an empty string switches it off. */
+  PHOTON_URL: z.string().default("https://photon.komoot.io"),
+  /** Overpass (exact junction nodes): only a self-hosted instance, the public one asks bots to run their own. */
+  OVERPASS_URL: z.string().default(""),
+  /** Self-hosted geocoders: no request spacing. */
+  GEOCODER_FAST: z.stringbool().default(false),
   GEOCODER_CONTACT_EMAIL: optionalString,
   WORKER_ALIVE_FILE: optionalString,
 });

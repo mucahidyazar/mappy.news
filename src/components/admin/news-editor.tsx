@@ -69,7 +69,7 @@ import { STATUS_BADGE } from "./status-styles";
 type FormInput = z.input<typeof newsEditSchema>;
 type FormOutput = z.output<typeof newsEditSchema>;
 
-const REJECT_REASONS = ["notIncident", "duplicate", "insufficient", "unverifiable", "rules", "suicide"] as const;
+const REJECT_REASONS = ["notIncident", "duplicate", "insufficient", "unverifiable", "rules"] as const;
 
 function Score({ label, value }: { label: string; value: number | null | undefined }) {
   if (value == null) return null;

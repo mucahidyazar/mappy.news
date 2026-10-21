@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, CalendarClock, Eye, Layers, MessageCircle, ShieldAlert, UserRound } from "lucide-react";
+import { ArrowLeft, Bot, CalendarClock, Eye, Layers, LifeBuoy, MessageCircle, ShieldAlert, UserRound } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
@@ -170,6 +170,14 @@ export default async function NewsPage({ params }: { params: Promise<{ locale: s
               </p>
             ))}
           </div>
+
+          {story.category.key === "suicide" ? (
+            // Reporting guidelines on suicide: always point to help.
+            <aside className="mt-6 flex items-start gap-3 rounded-xl border bg-muted/40 p-4 text-sm leading-relaxed">
+              <LifeBuoy className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <p>{t("suicideHelp")}</p>
+            </aside>
+          ) : null}
 
           <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-y py-4">
             <p className="flex items-start gap-2 text-sm text-muted-foreground">

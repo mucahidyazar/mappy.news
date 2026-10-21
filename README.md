@@ -17,7 +17,8 @@ picks out local incidents with AI, places them on the map and sends them to an e
 
 Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · PostgreSQL with Drizzle ORM · Better Auth ·
 next-intl (Turkish at `/`, English at `/en`) · Tailwind CSS v4 and shadcn/ui · MapLibre GL with OpenFreeMap tiles ·
-AI SDK (OpenAI, DeepSeek, Google, Anthropic, xAI) · Nominatim geocoding · Resend for email.
+AI SDK (OpenAI, DeepSeek, Google, Anthropic, xAI) · OpenStreetMap geocoding (Nominatim, Photon, optionally Overpass) ·
+Resend for email.
 
 ## Getting started
 
@@ -42,11 +43,11 @@ The worker (`src/worker/index.ts`) runs three loops: collecting due sources, pro
 maintenance. One worker runs per database (PostgreSQL advisory lock); the admin page shows its heartbeat and a live
 event feed (LISTEN/NOTIFY).
 
-For every item: cheap screening (age, length, incident keywords, topics that are never published) → the story page
-is read when the feed only has a teaser → AI analysis (classification, a neutral Turkish write-up, the place as
-written) → geocoding with Nominatim, never more precise than the text supports → de-duplication (the same incident
-from another outlet becomes a source of the existing story; related reports get a suggested parent) → the review
-queue, or auto-publishing when it is switched on and every threshold passes.
+For every item: cheap screening (age, length, incident keywords) → the story page is read when the feed only has a
+teaser → AI analysis (classification, a neutral Turkish write-up, every address part the text gives) → placing it on
+the map (below) → de-duplication (the same incident from another outlet becomes a source of the existing story;
+related reports get a suggested parent) → the review queue, or auto-publishing when it is switched on and every
+threshold passes (score, location confidence and precision, sensitivity, daily limit).
 
 The AI provider and model are chosen in **Admin → News bot → Settings**. Only that provider is used — there is no
 automatic fallback. When it refuses calls (no credit, a rejected key, a rate limit) analysis pauses, nothing is
@@ -55,6 +56,29 @@ caps the estimated spend.
 
 `/api/cron/bot` runs one pass for hosts that cannot keep a worker process running (`Authorization: Bearer $CRON_SECRET`).
 
+### Locations
+
+People use the map to choose where to live, so a story is placed as precisely as its text allows, and never more
+precisely. The model reads il, ilçe, mahalle, street, house number, the other street of an intersection, a named
+place, and a road with its section; `src/lib/bot/locate.ts` finds the ilçe (or il) and the mahalle first and keeps
+every finer search inside that box:
+
+- house number → Nominatim's structured address search;
+- intersection → where both streets' OSM geometries meet (the shared node, with a self-hosted Overpass);
+- named place → Photon and Nominatim, accepted only when the names agree on the words that tell the place apart and
+  on what kind of place it is (`src/lib/geo/place-names.ts`); large places get the precision of their size;
+- street → the stretch inside the mahalle; a street name found in several parts of the ilçe, without a mahalle to
+  choose by, stays at ilçe level;
+- road section → the road inside the named section ("TEM, Avcılar mevkii").
+
+A mahalle name shared by several places in the province is settled by the story's other place names, or not at all.
+Coordinates never come from the model, and answers are cached for 30 days (`geocode_cache`). `pnpm eval:locations`
+runs the resolver on real-world samples against the live services.
+
+The public Nominatim and Photon instances allow about one request per second; a story takes one to seven, which is
+enough for a few hundred stories a day. For more, self-host Nominatim and Photon with a Türkiye extract (and
+Overpass for exact junction nodes), set their URLs and `GEOCODER_FAST=true`.
+
 ## Scripts
 
 | Command | |
@@ -62,6 +86,7 @@ caps the estimated spend.
 | `pnpm dev` / `pnpm build` / `pnpm start` | web app |
 | `pnpm worker:dev` / `pnpm worker` / `pnpm worker:once` | news bot worker |
 | `pnpm check` | type-check, lint and tests |
+| `pnpm eval:locations [sample]` | the location resolver on real-world samples, against the live OSM services |
 | `pnpm validate` | `check` plus every production build |
 | `pnpm db:generate` | SQL migration from schema changes (`drizzle/`) |
 | `pnpm db:migrate` / `pnpm db:seed` | apply migrations / reference data (`--demo`, `--reset-categories`) |

@@ -258,7 +258,8 @@
     "copied": "Copied",
     "shareOnX": "Share on X",
     "shareOnWhatsApp": "Share on WhatsApp",
-    "share": "Share"
+    "share": "Share",
+    "suicideHelp": "If you're going through a hard time, you're not alone. In an emergency, call 112, or talk to someone you trust or a professional."
   },
   "comments": {
     "title": "Comments",
@@ -612,8 +613,7 @@
         "duplicate": "Already published",
         "insufficient": "Not enough information",
         "unverifiable": "Could not be verified",
-        "rules": "Breaks the rules",
-        "suicide": "We don't publish suicide reports"
+        "rules": "Breaks the rules"
       },
       "needsLocation": "Pick a location on the map before publishing.",
       "attachDescription": "Attach this story as an update, correction or development of an incident that was already published.",
@@ -1079,7 +1079,9 @@
       "effortHint": "Higher levels are slower and cost more; low is enough to pick out incidents. On DeepSeek, low turns thinking off.",
       "priceHint": "Picking a model from the list fills in the provider's list prices; the spend counter uses them. DeepSeek charges double at peak hours (weekdays 01–04 and 06–10 UTC).",
       "readArticles": "Read the story page",
-      "readArticlesHint": "When a feed only carries a short teaser, the bot opens the page of each post that passed screening and reads the full text. Places and details come out far more precisely."
+      "readArticlesHint": "When a feed only carries a short teaser, the bot opens the page of each post that passed screening and reads the full text. Places and details come out far more precisely.",
+      "autoMinPrecision": "Minimum location precision",
+      "autoMinPrecisionHint": "Stories placed more coarsely than this (e.g. only a province) always go to an editor."
     }
   }
 }

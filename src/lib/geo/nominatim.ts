@@ -1,12 +1,10 @@
 import type { LocationPrecision } from "@/lib/domain/constants";
 import { isInTurkey } from "@/lib/domain/location";
-import type { GeocodeResult } from "@/lib/domain/types";
 
-export interface GeocodeCandidate extends GeocodeResult {
-  street: string | null;
-  importance: number;
-  placeRank: number;
-}
+import { RequestQueue, requestSignal } from "./rate-limit";
+import type { BoundingBox, GeocodeCandidate } from "./types";
+
+export type { GeocodeCandidate } from "./types";
 
 interface NominatimAddress {
   house_number?: string;
@@ -30,11 +28,17 @@ interface NominatimAddress {
 export interface NominatimPlace {
   lat: string;
   lon: string;
+  name?: string;
   display_name?: string;
+  category?: string;
   addresstype?: string;
   type?: string;
   place_rank?: number;
   importance?: number;
+  /** [south, north, west, east] */
+  boundingbox?: [string, string, string, string];
+  /** With polygon_geojson=1: the way's geometry. */
+  geojson?: { type: string; coordinates: unknown };
   address?: NominatimAddress;
 }
 
@@ -54,13 +58,17 @@ export function precisionFromPlace(place: NominatimPlace): LocationPrecision {
     case "hamlet":
     case "isolated_dwelling":
       return "neighborhood";
+    // In Türkiye's data a mahalle boundary is a "city_district" and an ilçe a "town" (or a "city" boundary,
+    // such as "Zonguldak Merkez").
+    case "city_district":
+      return "neighborhood";
     case "town":
     case "county":
-    case "city_district":
     case "municipality":
     case "district":
       return "district";
     case "city":
+      return place.category === "boundary" ? "district" : "city";
     case "province":
       return "city";
     case "state":
@@ -88,12 +96,13 @@ export function parsePlace(place: NominatimPlace): GeocodeCandidate | null {
   if (address.country_code && address.country_code !== "tr") return null;
   const province = address.province ?? address.state ?? address.city ?? null;
   const cityAsDistrict = address.city && address.city !== province ? address.city : null;
-  const district = address.town ?? address.county ?? address.city_district ?? address.municipality ?? cityAsDistrict ?? null;
-  const neighborhood = address.suburb ?? address.quarter ?? address.neighbourhood ?? address.village ?? address.hamlet ?? null;
+  const district = address.town ?? address.county ?? address.municipality ?? cityAsDistrict ?? null;
+  const neighborhood = address.city_district ?? address.suburb ?? address.quarter ?? address.neighbourhood ?? address.village ?? address.hamlet ?? null;
   return {
     latitude,
     longitude,
     displayName: place.display_name ?? [neighborhood, district, province].filter(Boolean).join(", "),
+    name: place.name || null,
     precision: precisionFromPlace(place),
     province,
     district: district === province ? null : district,
@@ -102,7 +111,23 @@ export function parsePlace(place: NominatimPlace): GeocodeCandidate | null {
     provider: "nominatim",
     importance: place.importance ?? 0,
     placeRank: place.place_rank ?? 0,
+    bbox: parseBoundingBox(place.boundingbox),
+    kind: place.category ? `${place.category}:${place.type ?? ""}` : null,
+    lines: parseLines(place.geojson),
   };
+}
+
+function parseLines(geojson: NominatimPlace["geojson"]): Array<Array<[number, number]>> | null {
+  if (!geojson) return null;
+  if (geojson.type === "LineString") return [geojson.coordinates as Array<[number, number]>];
+  if (geojson.type === "MultiLineString") return geojson.coordinates as Array<Array<[number, number]>>;
+  return null;
+}
+
+function parseBoundingBox(box: NominatimPlace["boundingbox"]): BoundingBox | null {
+  if (!box) return null;
+  const [south, north, west, east] = box.map(Number);
+  return [south, north, west, east].every((value) => Number.isFinite(value)) ? { south: south!, north: north!, west: west!, east: east! } : null;
 }
 
 export interface NominatimOptions {
@@ -115,26 +140,12 @@ export interface NominatimOptions {
   fetchImpl?: typeof fetch;
 }
 
-/** Sequential Nominatim client that keeps the usage policy's spacing between requests. */
+/** Nominatim client that keeps the usage policy's spacing between requests. */
 export class NominatimClient {
-  private queue: Promise<unknown> = Promise.resolve();
-  private lastRequestAt = 0;
+  private readonly queue: RequestQueue;
 
-  constructor(private readonly options: NominatimOptions) {}
-
-  private schedule<T>(task: () => Promise<T>): Promise<T> {
-    const run = async () => {
-      const wait = (this.options.minIntervalMs ?? 1_100) - (Date.now() - this.lastRequestAt);
-      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-      try {
-        return await task();
-      } finally {
-        this.lastRequestAt = Date.now();
-      }
-    };
-    const next = this.queue.then(run, run);
-    this.queue = next.catch(() => undefined);
-    return next;
+  constructor(private readonly options: NominatimOptions) {
+    this.queue = new RequestQueue(options.minIntervalMs ?? 1_100);
   }
 
   private async request(path: string, params: Record<string, string>, signal?: AbortSignal): Promise<unknown> {
@@ -143,11 +154,10 @@ export class NominatimClient {
       url.searchParams.set(key, value);
     }
     if (this.options.email) url.searchParams.set("email", this.options.email);
-    return this.schedule(async () => {
-      const timeout = AbortSignal.timeout(this.options.timeoutMs ?? 10_000);
+    return this.queue.schedule(async () => {
       const response = await (this.options.fetchImpl ?? fetch)(url, {
         headers: { "User-Agent": this.options.userAgent, Accept: "application/json" },
-        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+        signal: requestSignal(signal, this.options.timeoutMs ?? 10_000),
       });
       if (response.status === 429) throw new Error("Geocoder rate limit reached");
       if (!response.ok) throw new Error(`Geocoder responded ${response.status}`);
@@ -155,14 +165,40 @@ export class NominatimClient {
     });
   }
 
-  async search(query: string, options: { limit?: number; signal?: AbortSignal } = {}): Promise<GeocodeCandidate[]> {
-    const body = await this.request(
-      "search",
-      { q: query, countrycodes: "tr", limit: String(options.limit ?? 5), dedupe: "1" },
-      options.signal,
-    );
+  private parseList(body: unknown) {
     if (!Array.isArray(body)) return [];
     return body.map((place) => parsePlace(place as NominatimPlace)).filter((item): item is GeocodeCandidate => item !== null);
+  }
+
+  /**
+   * Free-form search; with `bbox` only results inside the box come back. `geometry` returns every matching street
+   * segment (no de-duplication) with its line, for finding where streets meet.
+   */
+  async search(
+    query: string,
+    options: { limit?: number; bbox?: BoundingBox | null; geometry?: boolean; signal?: AbortSignal } = {},
+  ): Promise<GeocodeCandidate[]> {
+    const params: Record<string, string> = { q: query, countrycodes: "tr", limit: String(options.limit ?? 5), dedupe: options.geometry ? "0" : "1" };
+    if (options.geometry) {
+      params.polygon_geojson = "1";
+      params.polygon_threshold = "0.00001";
+    }
+    if (options.bbox) {
+      params.viewbox = [options.bbox.west, options.bbox.north, options.bbox.east, options.bbox.south].map((n) => n.toFixed(5)).join(",");
+      params.bounded = "1";
+    }
+    return this.parseList(await this.request("search", params, options.signal));
+  }
+
+  /** Structured address search ("12 Demir Sokak" in Kağıthane, İstanbul): the way to reach a house number. */
+  async address(
+    parts: { street: string; city?: string | null; state?: string | null },
+    options: { limit?: number; signal?: AbortSignal } = {},
+  ): Promise<GeocodeCandidate[]> {
+    const params: Record<string, string> = { street: parts.street, countrycodes: "tr", limit: String(options.limit ?? 5) };
+    if (parts.city) params.city = parts.city;
+    if (parts.state) params.state = parts.state;
+    return this.parseList(await this.request("search", params, options.signal));
   }
 
   async reverse(latitude: number, longitude: number, options: { zoom?: number; signal?: AbortSignal } = {}) {

@@ -34,4 +34,6 @@ React 19 · TypeScript · PostgreSQL + Drizzle ORM · Better Auth · next-intl �
   (`createTestDatabase()`); network access in bot code is injectable (`ctx.net`) and never real in tests.
 - News bot: only the provider chosen in Admin → News bot → Settings is used, never a fallback. Provider refusals
   (credit, key, rate limit) pause analysis through `aiPause` without spending item attempts.
+- Locations (`src/lib/bot/locate.ts`, `src/lib/geo`): a wrong pin is worse than a coarse one. Never claim more
+  precision than the matched OSM object supports, and run `pnpm eval:locations` after changing the resolver.
 - The seed is idempotent and never overwrites admin edits; `--reset-categories` restores category defaults.

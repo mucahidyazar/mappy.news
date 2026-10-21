@@ -11,7 +11,7 @@ const INCIDENT_STEMS = [
   "deprem", "sarsinti", "artci", "sel", "selde", "su baskin", "heyelan", "firtina", "hortum", "yildirim dus", "dolu yag",
   "cig dus", "coktu", "cokme", "enkaz", "mahsur", "afad", "kurtar",
   "kayip", "kaybolan", "araniyor", "arama kurtarma", "bogul", "ceset", "cesed",
-  "yarali", "yaralan", "hayatini kayb", "olu", "can verdi",
+  "yarali", "yaralan", "hayatini kayb", "olu", "olu bulun", "cansiz beden", "can verdi", "intihar",
   "bicak", "silah", "ates ac", "kursun", "cinayet", "oldur", "katil",
   "gasp", "hirsiz", "soygun", "kapkac", "calindi", "calan", "dolandir", "sahte", "tefeci",
   "uyusturucu", "narkotik", "esrar", "metamfetamin", "kacak",
@@ -20,9 +20,6 @@ const INCIDENT_STEMS = [
   "bomba", "supheli paket", "teror", "jandarma", "polis", "emniyet",
   "elektrik carp", "is kazasi", "zehirlen", "karbonmonoksit", "kopek saldir", "ayi saldir",
 ];
-
-/** Words that never warrant an AI call (WHO guidance: suicides are not reported). */
-const BLOCKED_STEMS = ["intihar"];
 
 /** Stems that only count as whole words: as prefixes they would match everyday words ("katıldı", "tirat"). */
 const SHORT_EXACT = new Set(["olu", "tir", "tup", "sel", "katil"]);
@@ -52,7 +49,7 @@ function matches(text: string, stems: string[]): string | null {
   return null;
 }
 
-export type ScreenReason = "too_old" | "too_short" | "no_keywords" | "blocked_topic" | "keyword_filter";
+export type ScreenReason = "too_old" | "too_short" | "no_keywords" | "keyword_filter";
 
 export interface ScreenResult {
   pass: boolean;
@@ -61,8 +58,8 @@ export interface ScreenResult {
 }
 
 /**
- * Cheap checks before any AI call: age, length, topics that are never published and, for media and community
- * feeds, at least one incident keyword. Official sources skip the keyword check.
+ * Cheap checks before any AI call: age, length and, for media and community feeds, at least one incident keyword.
+ * Official sources skip the keyword check.
  */
 export function screenEntry(input: {
   title: string | null;
@@ -80,9 +77,6 @@ export function screenEntry(input: {
   }
   const text = foldTurkish(`${input.title ?? ""} ${input.body}`);
   if (text.replace(/\s+/g, "").length < 25) return { pass: false, reason: "too_short" };
-
-  const blocked = matches(text, BLOCKED_STEMS);
-  if (blocked) return { pass: false, reason: "blocked_topic", matched: blocked };
 
   if (input.keywordFilter.length) {
     const custom = matches(text, input.keywordFilter.map((keyword) => foldTurkish(keyword.trim())).filter(Boolean));

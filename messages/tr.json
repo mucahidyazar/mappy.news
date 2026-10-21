@@ -258,7 +258,8 @@
     "copied": "Kopyalandı",
     "shareOnX": "X'te paylaş",
     "shareOnWhatsApp": "WhatsApp'ta paylaş",
-    "share": "Paylaş"
+    "share": "Paylaş",
+    "suicideHelp": "Zor bir dönemden geçiyorsan yalnız değilsin. Acil bir durumda 112 Acil Çağrı Merkezi'ni arayabilir, güvendiğin biriyle ya da bir uzmanla konuşabilirsin."
   },
   "comments": {
     "title": "Yorumlar",
@@ -612,8 +613,7 @@
         "duplicate": "Daha önce yayınlandı",
         "insufficient": "Bilgi yetersiz",
         "unverifiable": "Doğrulanamadı",
-        "rules": "Kurallara aykırı",
-        "suicide": "İntihar haberi yayınlamıyoruz"
+        "rules": "Kurallara aykırı"
       },
       "needsLocation": "Yayınlamak için önce haritadan bir konum seç.",
       "attachDescription": "Bu haberi daha önce yayınlanmış bir olayın güncellemesi, düzeltmesi ya da gelişmesi olarak bağla.",
@@ -1079,7 +1079,9 @@
       "effortHint": "Yüksek düzey daha yavaş ve pahalıdır; olay ayıklamak için düşük yeterli. DeepSeek'te düşük, thinking modunu kapatır.",
       "priceHint": "Katalogdan model seçince fiyatlar sağlayıcının listesine göre dolar; harcama sayacı bu değerleri kullanır. DeepSeek yoğun saatlerde (hafta içi 01–04 ve 06–10 UTC) iki kat ücretlendirir.",
       "readArticles": "Haber sayfasını oku",
-      "readArticlesHint": "RSS'te yalnızca kısa bir özet varsa bot, ön elemeyi geçen haberlerin sayfasını açıp tam metni okur. Konum ve ayrıntılar çok daha isabetli çıkar."
+      "readArticlesHint": "RSS'te yalnızca kısa bir özet varsa bot, ön elemeyi geçen haberlerin sayfasını açıp tam metni okur. Konum ve ayrıntılar çok daha isabetli çıkar.",
+      "autoMinPrecision": "En düşük konum hassasiyeti",
+      "autoMinPrecisionHint": "Konumu bundan kaba bulunan haberler (ör. yalnızca il) her zaman editöre gider."
     }
   }
 }

@@ -112,6 +112,15 @@ export const CATEGORY_SEEDS: CategorySeed[] = [
     aiHint: "Cinsel saldırı, taciz ve istismar olayları. Mağdurun kimliği ve adresi asla verilmez.",
   },
   {
+    key: "suicide",
+    nameTr: "İntihar",
+    nameEn: "Suicide",
+    color: "#64748B",
+    icon: "candle",
+    isSensitive: false,
+    aiHint: "İntiharlar, intihar girişimleri ve şüpheli ölümler (cansız bedeni bulundu vb.).",
+  },
+  {
     key: "other_incidents",
     nameTr: "Diğer Olaylar",
     nameEn: "Other Incidents",

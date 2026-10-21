@@ -4,6 +4,7 @@ import { and, asc, eq, gt, gte, inArray, isNotNull, lt, lte, ne, or, sql } from 
 
 import { botEvents, botItems, categories, geocodeCache, news, newsViews, sources } from "@/lib/db/schema";
 import type { AppDatabase } from "@/lib/db/types";
+import { precisionRank } from "@/lib/domain/location";
 import { foldTurkish } from "@/lib/domain/text";
 import type { BotAnalysis, ParentSuggestion } from "@/lib/domain/types";
 import type { Geocoder } from "@/lib/geo/geocoder";
@@ -434,14 +435,8 @@ export async function processItem(ctx: BotContext, processing: ProcessingContext
 
     // A story the model could only place in a region or the whole country does not belong on the map.
     const unplaceable = analysis.location.precision === "region" || analysis.location.precision === "country";
-    if (!analysis.isIncident || analysis.sensitivityType === "suicide" || unplaceable || analysis.editorialScore < settings.review.minScore) {
-      const reason = !analysis.isIncident
-        ? (analysis.rejectionReason ?? "not_incident")
-        : analysis.sensitivityType === "suicide"
-          ? "suicide"
-          : unplaceable
-            ? "no_location"
-            : "low_score";
+    if (!analysis.isIncident || unplaceable || analysis.editorialScore < settings.review.minScore) {
+      const reason = !analysis.isIncident ? (analysis.rejectionReason ?? "not_incident") : unplaceable ? "no_location" : "low_score";
       await finish(ctx, item, { status: "rejected", rejectionReason: reason, analysis });
       await emitEvent(ctx.db, { code: "item.rejected", itemId: item.id, sourceId: source.id, data: { reason, score: analysis.editorialScore } });
       return "rejected";
@@ -505,6 +500,7 @@ export async function processItem(ctx: BotContext, processing: ProcessingContext
       !parentSuggestion &&
       analysis.editorialScore >= settings.autoPublish.minScore &&
       placed.confidence >= settings.autoPublish.minLocationConfidence &&
+      precisionRank(placed.precision) <= precisionRank(settings.autoPublish.minPrecision) &&
       (!sensitive || settings.autoPublish.allowSensitive) &&
       (await publishedByBotToday(ctx)) < settings.autoPublish.dailyLimit;
 
