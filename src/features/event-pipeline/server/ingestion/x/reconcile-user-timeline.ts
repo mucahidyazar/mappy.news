@@ -44,13 +44,14 @@ const findNewestPostId = (posts: readonly XPost[]): string | null =>
 
 const createEnvelopes = (
   account: XAccount,
-  capturedAt: string,
+  receivedAt: string,
   posts: readonly XPost[],
 ): readonly XPostEnvelope[] =>
   posts.map((post) => ({
     accountId: account.id,
     accountHandle: account.handle,
-    capturedAt,
+    channel: "user_timeline",
+    receivedAt,
     post,
   }));
 
@@ -65,7 +66,7 @@ export const reconcileUserTimeline = async (
   }
 
   const checkpoint = await input.checkpoints.load({ accountId: input.account.id });
-  const capturedAt = input.now().toISOString();
+  const receivedAt = input.now().toISOString();
   let nextToken: string | undefined;
   let seenTokens: readonly string[] = [];
   let watermark: string | null = null;
@@ -95,7 +96,7 @@ export const reconcileUserTimeline = async (
     }
 
     const persisted = await input.repository.persistBatch(
-      createEnvelopes(input.account, capturedAt, page.posts),
+      createEnvelopes(input.account, receivedAt, page.posts),
     );
     inserted += persisted.inserted;
     duplicates += persisted.duplicates;
@@ -134,7 +135,7 @@ export const reconcileUserTimeline = async (
     accountId: input.account.id,
     expectedVersion: checkpoint.version,
     sinceId: watermark,
-    reconciledAt: capturedAt,
+    reconciledAt: receivedAt,
   });
   if (advanceResult === "conflict") {
     throw new Error(

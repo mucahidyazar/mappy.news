@@ -19,6 +19,7 @@ export interface XPost {
   readonly createdAt: string;
   readonly editHistoryPostIds: readonly string[];
   readonly referencedPosts: readonly XReferencedPost[];
+  readonly raw: Readonly<Record<string, unknown>>;
 }
 
 export interface XPartialError {
@@ -60,7 +61,8 @@ export interface XTimelineClient {
 export interface XPostEnvelope {
   readonly accountId: string;
   readonly accountHandle: string;
-  readonly capturedAt: string;
+  readonly channel: "user_timeline";
+  readonly receivedAt: string;
   readonly post: XPost;
 }
 

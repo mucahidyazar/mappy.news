@@ -152,6 +152,7 @@ const toTimelinePage = (
     createdAt: post.created_at,
     editHistoryPostIds: post.edit_history_tweet_ids,
     referencedPosts: post.referenced_tweets ?? [],
+    raw: post,
   })),
   errors: (response.errors ?? []).map(toPartialError),
   rateLimit: toRateLimit(headers),
