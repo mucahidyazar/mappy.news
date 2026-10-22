@@ -8,7 +8,7 @@ import type { BotAnalysis } from "@/lib/domain/types";
 import { providerOptions, samplingTemperature } from "./ai";
 import type { AiEffort, AiProvider } from "./settings";
 
-export const PROMPT_VERSION = "analysis-2026-10-21c";
+export const PROMPT_VERSION = "analysis-2026-10-22a";
 
 const SENSITIVITY_TYPES = ["sexual_crime", "domestic_violence", "child", "suicide", "graphic", "other"] as const;
 
@@ -20,20 +20,22 @@ export interface PromptCategory {
 
 /**
  * What the model must return. Lengths and number ranges are enforced afterwards, not by the schema: strict JSON
- * schema modes differ between providers.
+ * schema modes differ between providers. Only the decision is required; anything a model may leave null when there
+ * is nothing to say (JSON-mode providers such as DeepSeek do, for a story without a place) is filled in by
+ * `normalizeAnalysis`.
  */
 export function analysisSchema(categoryKeys: string[]) {
   const keys = (categoryKeys.length ? categoryKeys : ["other_incidents"]) as [string, ...string[]];
   return z.object({
     isIncident: z.boolean().describe("Türkiye'de gerçekleşmiş, haritaya konabilecek somut bir yerel olay mı?"),
     rejectionReason: z.string().nullable().describe("isIncident false ise kısa neden, değilse null"),
-    categoryKey: z.enum(keys),
-    title: z.string().describe("En fazla 110 karakter, tarafsız Türkçe başlık"),
-    summary: z.string().describe("1-2 cümle, en fazla 280 karakter"),
-    content: z.string().describe("2-3 kısa paragraf, yalnızca kaynaktaki bilgiler"),
+    categoryKey: z.enum(keys).nullable(),
+    title: z.string().nullable().describe("En fazla 110 karakter, tarafsız Türkçe başlık"),
+    summary: z.string().nullable().describe("1-2 cümle, en fazla 280 karakter"),
+    content: z.string().nullable().describe("2-3 kısa paragraf, yalnızca kaynaktaki bilgiler"),
     occurredAt: z.string().nullable().describe("Olay zamanı metinde açıkça varsa ISO-8601 (+03:00), yoksa null"),
     location: z.object({
-      mention: z.string().describe("Metindeki yer ifadesi, aynen"),
+      mention: z.string().nullable().describe("Metindeki yer ifadesi, aynen; yer geçmiyorsa null"),
       province: z.string().nullable().describe("İl"),
       district: z.string().nullable().describe("İlçe"),
       neighborhood: z.string().nullable().describe("Mahalle, köy ya da semt"),
@@ -43,19 +45,36 @@ export function analysisSchema(categoryKeys: string[]) {
       place: z.string().nullable().describe("Olayın olduğu adlandırılmış yer: işletme, bina, site, okul, AVM, park, köprü, kavşak, sanayi sitesi"),
       road: z.string().nullable().describe("Yol kazalarında otoyol ya da kara yolu adı"),
       roadSection: z.string().nullable().describe("Yolun kesimi: mevki, istikamet ya da kilometre"),
-      precision: z.enum(LOCATION_PRECISIONS),
-      confidence: z.number().describe("0–1"),
-      evidence: z.string().describe("Konumu neye dayanarak belirlediğin, kısa"),
-    }),
-    editorialScore: z.number().describe("0–1"),
-    confidence: z.number().describe("0–1"),
-    isSensitive: z.boolean(),
+      precision: z.enum(LOCATION_PRECISIONS).nullable(),
+      confidence: z.number().nullable().describe("0–1"),
+      evidence: z.string().nullable().describe("Konumu neye dayanarak belirlediğin, kısa"),
+    }).nullable(),
+    editorialScore: z.number().nullable().describe("0–1"),
+    confidence: z.number().nullable().describe("0–1"),
+    isSensitive: z.boolean().nullable(),
     sensitivityType: z.enum(SENSITIVITY_TYPES).nullable(),
-    keywords: z.array(z.string()).describe("En fazla 6 kısa anahtar kelime"),
+    keywords: z.array(z.string()).nullable().describe("En fazla 6 kısa anahtar kelime"),
   });
 }
 
 export type RawAnalysis = z.infer<ReturnType<typeof analysisSchema>>;
+type RawLocation = NonNullable<RawAnalysis["location"]>;
+
+const NO_LOCATION: RawLocation = {
+  mention: null,
+  province: null,
+  district: null,
+  neighborhood: null,
+  street: null,
+  houseNumber: null,
+  crossStreet: null,
+  place: null,
+  road: null,
+  roadSection: null,
+  precision: "unknown",
+  confidence: 0,
+  evidence: null,
+};
 
 const SYSTEM_PROMPT = `Sen mappy.news'in yerel olay editörüsün. mappy.news, Türkiye'de gerçekleşen yerel asayiş, kaza ve afet olaylarını kaynaklarıyla birlikte haritada gösteren bir haber platformudur. Ev almak ya da kiralamak isteyenler bir sokakta, binada ya da mahallede ne olduğunu görmek için kullanır; bu yüzden olayın yerini olabildiğince kesin çıkarman en önemli işindir.
 
@@ -94,7 +113,7 @@ KONUM (en önemli bölüm):
 - street: cadde, sokak ya da bulvar, türüyle ve kısaltmasız ("Demir Sokak", "Bağdat Caddesi", "1203/1 Sokak").
 - houseNumber: kapı ya da bina numarası, yalnızca metinde yazıyorsa ("12", "12/A").
 - crossStreet: olay iki yolun kesiştiği yerdeyse diğer cadde ya da sokak.
-- place: olayın olduğu adlandırılmış yer: işletme, bina, site, apartman, okul, hastane, AVM, cami, park, köprü, kavşak, fabrika, sanayi sitesi ("Moda Sahnesi", "Zeytinburnu Sahil Parkı", "Mecidiyeköy Kavşağı", "Uşak Deri Organize Sanayi Bölgesi").
+- place: olayın olduğu yerin özel adı: işletme, bina, site, apartman, okul, hastane, AVM, cami, park, köprü, kavşak, fabrika, sanayi sitesi ("Moda Sahnesi", "Kazlıçeşme Sahil Parkı", "Mecidiyeköy Kavşağı", "Uşak Deri Organize Sanayi Bölgesi"). Adı geçmeyen yerleri ("bir dükkan", "kuyumcu", "fabrika", "tarla") yazma; null bırak.
 - road ve roadSection: yol kazalarında yol ("TEM Otoyolu", "D-100", "Ankara-Konya kara yolu") ve kesimi ("Avcılar mevkii", "Edirne istikameti", "45. kilometre").
 - Kısaltmaları aç: Mah. → Mahallesi, Cad./Cd. → Caddesi, Sk./Sok. → Sokak, Bulv. → Bulvarı. Resmi Türkçe yazımı kullan.
 - precision bilinen en ince düzeydir: exact (kapı numarası, adlandırılmış bina ya da mekan, kavşak), street (sokak, cadde, otoyol kesimi), neighborhood, district, city (yalnızca il), region, country, unknown. Olay tek bir ile bağlanamıyorsa (region, country) isIncident = false.
@@ -150,9 +169,9 @@ export function normalizeAnalysis(
 ): BotAnalysis {
   const now = context.now ?? new Date();
   const fallbackCategory = context.categoryKeys.includes("other_incidents") ? "other_incidents" : (context.categoryKeys[0] ?? "other_incidents");
-  const precision: LocationPrecision = (LOCATION_PRECISIONS as readonly string[]).includes(raw.location.precision)
-    ? raw.location.precision
-    : "unknown";
+  const location = raw.location ?? NO_LOCATION;
+  const precision: LocationPrecision =
+    location.precision && (LOCATION_PRECISIONS as readonly string[]).includes(location.precision) ? location.precision : "unknown";
 
   let occurredAt: string | null = null;
   if (raw.occurredAt) {
@@ -161,7 +180,7 @@ export function normalizeAnalysis(
     if (!Number.isNaN(time) && time <= now.getTime() + 3600 * 1000 && time >= earliest) occurredAt = new Date(time).toISOString();
   }
 
-  let title = normalizeWhitespace(raw.title);
+  let title = normalizeWhitespace(raw.title ?? "");
   if (title && title === title.toLocaleUpperCase("tr-TR") && /[A-ZÇĞİÖŞÜ]{4}/.test(title)) {
     // Shouting headlines from feeds: keep the words, drop the caps.
     title = title.toLocaleLowerCase("tr-TR").replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase("tr-TR"));
@@ -171,25 +190,25 @@ export function normalizeAnalysis(
   return {
     isIncident: Boolean(raw.isIncident),
     rejectionReason: raw.isIncident ? null : cleanPart(raw.rejectionReason, 300) ?? "not_incident",
-    categoryKey: context.categoryKeys.includes(raw.categoryKey) ? raw.categoryKey : fallbackCategory,
+    categoryKey: raw.categoryKey && context.categoryKeys.includes(raw.categoryKey) ? raw.categoryKey : fallbackCategory,
     title: truncate(title, 120),
-    summary: truncate(normalizeWhitespace(raw.summary), 320),
-    content: truncate(raw.content.trim().replace(/\n{3,}/g, "\n\n"), 2000),
+    summary: truncate(normalizeWhitespace(raw.summary ?? ""), 320),
+    content: truncate((raw.content ?? "").trim().replace(/\n{3,}/g, "\n\n"), 2000),
     occurredAt,
     location: {
-      mention: cleanPart(raw.location.mention, 200) ?? "",
-      province: cleanPart(raw.location.province),
-      district: cleanPart(raw.location.district),
-      neighborhood: cleanPart(raw.location.neighborhood),
-      street: cleanPart(raw.location.street, 160),
-      houseNumber: cleanPart(raw.location.houseNumber, 20),
-      crossStreet: cleanPart(raw.location.crossStreet, 160),
-      place: cleanPart(raw.location.place, 160),
-      road: cleanPart(raw.location.road, 120),
-      roadSection: cleanPart(raw.location.roadSection, 120),
+      mention: cleanPart(location.mention, 200) ?? "",
+      province: cleanPart(location.province),
+      district: cleanPart(location.district),
+      neighborhood: cleanPart(location.neighborhood),
+      street: cleanPart(location.street, 160),
+      houseNumber: cleanPart(location.houseNumber, 20),
+      crossStreet: cleanPart(location.crossStreet, 160),
+      place: cleanPart(location.place, 160),
+      road: cleanPart(location.road, 120),
+      roadSection: cleanPart(location.roadSection, 120),
       precision,
-      confidence: clamp01(raw.location.confidence),
-      evidence: cleanPart(raw.location.evidence, 300) ?? "",
+      confidence: clamp01(location.confidence),
+      evidence: cleanPart(location.evidence, 300) ?? "",
     },
     editorialScore: clamp01(raw.editorialScore),
     confidence: clamp01(raw.confidence),

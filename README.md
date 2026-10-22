@@ -67,9 +67,9 @@ every finer search inside that box:
 - intersection → where both streets' OSM geometries meet (the shared node, with a self-hosted Overpass);
 - named place → Photon and Nominatim, accepted only when the names agree on the words that tell the place apart and
   on what kind of place it is (`src/lib/geo/place-names.ts`); large places get the precision of their size;
-- street → the stretch inside the mahalle; a street name found in several parts of the ilçe, without a mahalle to
-  choose by, stays at ilçe level;
-- road section → the road inside the named section ("TEM, Avcılar mevkii").
+- street → the stretch inside the mahalle, with Photon for OSM's other spellings ("Hoca Ahmed Yesevi"); a street name
+  found in several parts of the ilçe, without a mahalle to choose by, stays at ilçe level;
+- road section → the road inside the named section ("TEM, Avcılar mevkii"), as precise as the section is small.
 
 A mahalle name shared by several places in the province is settled by the story's other place names, or not at all.
 Coordinates never come from the model, and answers are cached for 30 days (`geocode_cache`). `pnpm eval:locations`

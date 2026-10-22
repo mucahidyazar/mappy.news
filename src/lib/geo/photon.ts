@@ -1,6 +1,7 @@
 import type { LocationPrecision } from "@/lib/domain/constants";
 import { isInTurkey } from "@/lib/domain/location";
 
+import { normalizeAddressPart } from "./address";
 import { RequestQueue, requestSignal } from "./rate-limit";
 import type { BoundingBox, GeocodeCandidate } from "./types";
 
@@ -67,7 +68,8 @@ export function parsePhotonFeature(feature: PhotonFeature): GeocodeCandidate | n
   if (properties.countrycode && properties.countrycode.toUpperCase() !== "TR") return null;
   const province = properties.state ?? null;
   const district = properties.county ?? (properties.city && properties.city !== province ? properties.city : null);
-  const neighborhood = properties.district ?? properties.locality ?? null;
+  // Photon carries OSM's own abbreviations ("Konak Mah.").
+  const neighborhood = normalizeAddressPart(properties.district ?? properties.locality ?? null);
   const [west, north, east, south] = properties.extent ?? [];
   const street = properties.street ?? (properties.osm_key === "highway" ? (properties.name ?? null) : null);
   return {

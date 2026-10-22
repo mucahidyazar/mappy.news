@@ -41,7 +41,8 @@ const HEADS: Record<string, string> = {
   meydan: "square",
   stadyum: "sport", stad: "sport", spor: "sport", salon: "sport", havuz: "sport",
   muze: "culture", kutuphane: "culture", tiyatro: "culture", sinema: "culture", kultur: "culture", kongre: "culture", fuar: "culture",
-  magaza: "shop", market: "shop", galeri: "shop",
+  magaza: "shop", market: "shop", galeri: "shop", dukkan: "shop", kuyumcu: "shop", bina: "building", ev: "building",
+  isyeri: "building", tarla: "field",
   gol: "water", baraj: "water", dere: "water", irmak: "water", nehir: "water",
   tepe: "hill", dag: "hill", yayla: "hill",
 };

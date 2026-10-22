@@ -51,6 +51,7 @@ describe("road and street names", () => {
     expect(roadNames("TEM Otoyolu")).toEqual(["TEM Otoyolu", "Avrupa Otoyolu", "Anadolu Otoyolu"]);
     expect(roadNames("E-5 kara yolu")).toEqual(["E-5 kara yolu", "D-100"]);
     expect(roadNames("D 100")).toEqual(["D-100"]);
+    expect(roadNames("Bandırma-Çanakkale kara yolu")).toEqual(["Bandırma-Çanakkale kara yolu", "Bandırma-Çanakkale Yolu"]);
     expect(streetBase("Demir Sk.")).toBe("Demir");
   });
 

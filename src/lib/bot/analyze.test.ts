@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAnalysisPrompt, normalizeAnalysis, PROMPT_VERSION, type RawAnalysis } from "./analyze";
+import { analysisSchema, buildAnalysisPrompt, normalizeAnalysis, PROMPT_VERSION, type RawAnalysis } from "./analyze";
 
 const raw: RawAnalysis = {
   isIncident: true,
@@ -62,6 +62,38 @@ describe("normalizeAnalysis", () => {
   it("calms all-caps headlines and uses the feed title when the model gives none", () => {
     expect(normalizeAnalysis({ ...raw, title: "KADIKÖY'DE BÜYÜK YANGIN" }, context).title).toBe("Kadıköy'de büyük yangın");
     expect(normalizeAnalysis({ ...raw, title: "   " }, context).title).toBe("Akıştaki başlık");
+  });
+
+  it("accepts a rejection that leaves everything but the decision empty", () => {
+    // What DeepSeek's JSON mode returns for a story with nothing to place.
+    const parsed = analysisSchema(context.categoryKeys).parse({
+      isIncident: false,
+      rejectionReason: "Olay Türkiye dışında",
+      categoryKey: null,
+      title: null,
+      summary: null,
+      content: null,
+      occurredAt: null,
+      location: null,
+      editorialScore: 0.05,
+      confidence: 0.9,
+      isSensitive: null,
+      sensitivityType: null,
+      keywords: null,
+    });
+    expect(normalizeAnalysis(parsed, context)).toMatchObject({
+      isIncident: false,
+      rejectionReason: "Olay Türkiye dışında",
+      categoryKey: "other_incidents",
+      title: "Akıştaki başlık",
+      summary: "",
+      content: "",
+      location: { mention: "", precision: "unknown", confidence: 0, evidence: "" },
+      isSensitive: false,
+      keywords: [],
+    });
+    const unplaced = analysisSchema(context.categoryKeys).parse({ ...raw, location: { ...raw.location, mention: null, precision: null, confidence: null, evidence: null } });
+    expect(normalizeAnalysis(unplaced, context).location).toMatchObject({ mention: "", precision: "unknown", confidence: 0 });
   });
 
   it("always gives rejected posts a reason", () => {

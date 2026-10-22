@@ -4,7 +4,7 @@ import type { BotAnalysis } from "@/lib/domain/types";
 import type { Geocoder } from "@/lib/geo/geocoder";
 import type { BoundingBox, GeocodeCandidate } from "@/lib/geo/types";
 
-import { clueNames, locate, readParts, sameName, sameStreet } from "./locate";
+import { clueNames, locate, readParts, sameLocality, sameName, sameStreet } from "./locate";
 
 type Location = BotAnalysis["location"];
 
@@ -135,6 +135,14 @@ describe("name matching", () => {
     expect(sameStreet("Demir Sokağı", "Demir Sokak")).toBe(true);
     expect(sameStreet("Bağdat Cd.", "Bağdat Caddesi")).toBe(true);
     expect(sameStreet("Demir Sokak", "Demirci Sokak")).toBe(false);
+    expect(sameStreet("Hoca Ahmed Yesevi Caddesi", "Hoca Ahmet Yesevi Cad.")).toBe(true);
+    expect(sameStreet("Antalya - Burdur Yolu", "Antalya-Burdur Yolu")).toBe(true);
+  });
+
+  it("matches a mahalle only by its own name", () => {
+    expect(sameLocality("Kemalpaşa Mahallesi", "Kemalpaşa")).toBe(true);
+    expect(sameLocality("Piri Reis Mahallesi", "Pirireis")).toBe(true);
+    expect(sameLocality("Oğuzhan Mermer", "Oğuzhan")).toBe(false);
   });
 });
 
@@ -278,6 +286,58 @@ describe("locate", () => {
     expect(clueNames(readParts({ ...base, street: "Atatürk Caddesi", roadSection: "Avcılar mevkii" }))).toEqual(["Avcılar"]);
   });
 
+  it("does not take a business named after the mahalle for the mahalle", async () => {
+    const bucak = candidate({ province: "Burdur", district: "Bucak", displayName: "Bucak, Burdur", latitude: 37.457, longitude: 30.586, bbox: { west: 30.4, south: 37.3, east: 30.8, north: 37.6 } });
+    const quarry = candidate({ precision: "neighborhood", kind: "landuse:industrial", name: "Oğuzhan Mermer", province: "Burdur", district: "Bucak", displayName: "Oğuzhan Mermer, Bucak, Burdur", latitude: 37.4777, longitude: 30.5669 });
+    const { geocoder } = fakeGeocoder({ search: { "Bucak, Burdur": [bucak], "Oğuzhan, Bucak, Burdur": [quarry], "Oğuzhan Mahallesi, Bucak, Burdur": [quarry] } });
+    const result = await locate(geocoder, { ...base, province: "Burdur", district: "Bucak", neighborhood: "Oğuzhan Mahallesi", precision: "neighborhood" });
+    expect(result).toMatchObject({ method: "district", label: "Oğuzhan Mahallesi, Bucak, Burdur" });
+  });
+
+  it("finds a street that OSM spells another way through Photon", async () => {
+    const avenue = candidate({ provider: "photon", precision: "street", kind: "highway:secondary", name: "Hoca Ahmed Yesevi Caddesi", street: "Hoca Ahmed Yesevi Caddesi", neighborhood: "Konak Mahallesi", displayName: "Hoca Ahmed Yesevi Caddesi, Konak Mahallesi, Kağıthane", latitude: 41.08, longitude: 28.975, bbox: null });
+    const { geocoder } = fakeGeocoder({ search: { "Kağıthane, İstanbul": [district] }, place: [avenue] });
+    delete geocoder.streetLine;
+    expect(await locate(geocoder, { ...base, street: "Hoca Ahmet Yesevi Caddesi" })).toMatchObject({
+      method: "street",
+      precision: "street",
+      label: "Hoca Ahmet Yesevi Caddesi, Konak Mahallesi, Kağıthane, İstanbul",
+    });
+  });
+
+  it("does not take a business named like the street for the street", async () => {
+    const office = candidate({ precision: "exact", kind: "office:consulting", name: "Kazlıçeşme", street: "OSB 12. Yol Sokak", displayName: "Kazlıçeşme, OSB 12. Yol Sk., Tuzla", latitude: 41.07, longitude: 28.96, bbox: null });
+    const avenue = candidate({ precision: "street", kind: "highway:tertiary", name: "Kazlıçeşme Cd.", street: "Kazlıçeşme Cd.", displayName: "Kazlıçeşme Cd., Aydınlı Mahallesi, Tuzla", latitude: 41.1, longitude: 28.99, bbox: null });
+    const { geocoder } = fakeGeocoder({ search: { "Kağıthane, İstanbul": [district], Kazlıçeşme: [office, avenue] }, reverse: candidate({ neighborhood: "Aydınlı Mahallesi" }) });
+    expect(await locate(geocoder, { ...base, street: "Kazlıçeşme Caddesi" })).toMatchObject({ method: "street", geocode: { latitude: 41.1 } });
+  });
+
+  it("takes the named parts of an industrial zone for the zone", async () => {
+    const zone = candidate({ provider: "photon", precision: "neighborhood", kind: "landuse:industrial", name: "İstanbul Deri Organize Sanayi Bölgesi", latitude: 41.08, longitude: 28.975, bbox: { west: 28.96, south: 41.07, east: 28.99, north: 41.09 } });
+    const part = candidate({ provider: "photon", precision: "neighborhood", kind: "landuse:industrial", name: "Organize Deri Sanayi", latitude: 41.088, longitude: 28.985, bbox: null });
+    const { geocoder } = fakeGeocoder({ search: { "Kağıthane, İstanbul": [district] }, place: [part, zone] });
+    expect(await locate(geocoder, { ...base, place: "Kağıthane Deri Organize Sanayi Bölgesi" })).toMatchObject({ method: "place", geocode: { latitude: 41.08 } });
+  });
+
+  it("looks for a belde's villages around it, not inside its dot of a box", async () => {
+    const kozcagiz = candidate({ precision: "neighborhood", kind: "place:village", province: "Bartın", district: "Bartın Merkez", displayName: "Kozcağız, Bartın Merkez, Bartın", latitude: 41.4779, longitude: 32.3404, bbox: { west: 32.33, south: 41.47, east: 32.35, north: 41.49 } });
+    const ustaoglu = candidate({ precision: "neighborhood", kind: "place:village", province: "Bartın", district: "Bartın Merkez", displayName: "Ustaoğlu, Bartın Merkez, Bartın", latitude: 41.44, longitude: 32.38, bbox: null });
+    const { geocoder, calls } = fakeGeocoder({ search: { "Kozcağız, Bartın": [kozcagiz], "Ustaoğlu, Bartın": [ustaoglu] } });
+    const result = await locate(geocoder, { ...base, province: "Bartın", district: "Kozcağız", neighborhood: "Ustaoğlu Köyü", precision: "neighborhood" });
+    expect(result).toMatchObject({ method: "neighborhood", label: "Ustaoğlu, Kozcağız, Bartın", geocode: { latitude: 41.44 } });
+    const box = calls.find((call) => call.query === "Ustaoğlu, Bartın")?.bbox;
+    expect(box!.north - box!.south).toBeGreaterThan(0.1);
+  });
+
+  it("puts a crash in a small road section at street level", async () => {
+    const province = candidate({ precision: "city", district: null, displayName: "İstanbul", latitude: 41.0, longitude: 28.95, bbox: { west: 27.9, south: 40.8, east: 29.9, north: 41.6 } });
+    const kavak = candidate({ precision: "neighborhood", district: "Beykoz", name: "Anadolukavağı", displayName: "Anadolukavağı, Beykoz, İstanbul", latitude: 41.17, longitude: 29.09, bbox: { west: 29.088, south: 41.168, east: 29.092, north: 41.172 } });
+    const road = candidate({ precision: "street", kind: "highway:primary", street: "Anadolu Kavağı Yolu", displayName: "Anadolu Kavağı Yolu", latitude: 41.1702, longitude: 29.0901, bbox: null });
+    const { geocoder } = fakeGeocoder({ search: { İstanbul: [province], "Anadolukavağı, İstanbul": [kavak], "Anadolu Kavağı Yolu": [road] }, reverse: candidate({ neighborhood: "Anadolukavağı Mahallesi" }) });
+    delete geocoder.streetLine;
+    expect(await locate(geocoder, { ...base, district: null, road: "Anadolu Kavağı Yolu", roadSection: "Anadolukavağı mevkii" })).toMatchObject({ method: "road", precision: "street" });
+  });
+
   it("does not guess between same-named streets in different parts of the district", async () => {
     const north = candidate({ precision: "street", street: "Atatürk Caddesi", latitude: 41.105, longitude: 28.99 });
     const south = candidate({ precision: "street", street: "Atatürk Caddesi", latitude: 41.065, longitude: 28.955 });
@@ -298,7 +358,9 @@ describe("locate", () => {
     const road = candidate({ provider: "overpass", precision: "street", street: "TEM Otoyolu", latitude: 40.995, longitude: 28.71, district: null, province: null, bbox: null });
     const { geocoder, calls } = fakeGeocoder({ search: { İstanbul: [province], "Avcılar, İstanbul": [avcilar] }, streetLine: [road], reverse: candidate({ neighborhood: "Firuzköy" }) });
     const result = await locate(geocoder, { ...base, district: null, road: "TEM Otoyolu", roadSection: "Avcılar mevkii", precision: "street" });
-    expect(result).toMatchObject({ method: "road", precision: "street", label: "TEM Otoyolu, Firuzköy, Avcılar, İstanbul", geocode: { district: "Avcılar" } });
+    // Kilometers of motorway run through Avcılar: on the road, but only as precise as the district, so the label
+    // doesn't name the mahalle the point happens to fall in.
+    expect(result).toMatchObject({ method: "road", precision: "district", label: "TEM Otoyolu, Avcılar, İstanbul", geocode: { district: "Avcılar" } });
     const roadCall = calls.find((call) => call.kind === "streetLine");
     expect(roadCall?.bbox?.west).toBeGreaterThan(28.6);
   });
@@ -374,7 +436,7 @@ describe("locate", () => {
     const { geocoder, calls } = fakeGeocoder({ search: { İstanbul: [province], "Avcılar, İstanbul": [avcilar], "Avrupa Otoyolu": [motorway] }, reverse: candidate({ neighborhood: "Tahtakale Mahallesi" }) });
     delete geocoder.streetLine;
     const result = await locate(geocoder, { ...base, district: null, road: "TEM Otoyolu", roadSection: "Avcılar mevkii" });
-    expect(result).toMatchObject({ method: "road", precision: "street", label: "TEM Otoyolu, Tahtakale Mahallesi, Avcılar, İstanbul" });
+    expect(result).toMatchObject({ method: "road", precision: "district", label: "TEM Otoyolu, Avcılar, İstanbul" });
     expect(calls.map((call) => call.query)).toContain("Avrupa Otoyolu");
   });
 

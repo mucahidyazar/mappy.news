@@ -125,6 +125,10 @@ export function roadNames(road: string | null | undefined): string[] {
   if (!name) return [];
   const ref = /^([DO])[\s.-]?(\d{1,3})(?!\d)/iu.exec(name);
   const names = [ref ? `${ref[1]!.toUpperCase()}-${ref[2]}` : name];
-  for (const [pattern, aliases] of ROAD_ALIASES) if (pattern.test(name)) names.push(...aliases);
+  const aliases = ROAD_ALIASES.filter(([pattern]) => pattern.test(name)).flatMap(([, names]) => names);
+  // "Bandırma-Çanakkale kara yolu" is "Bandırma - Çanakkale Yolu" in OSM.
+  const plain = name.replace(/\s+(kara\s*yolu|karayolu)$/iu, " Yolu");
+  if (!ref && aliases.length === 0 && plain !== name) names.push(plain);
+  names.push(...aliases);
   return [...new Set(names)];
 }

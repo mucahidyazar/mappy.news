@@ -91,11 +91,29 @@ export async function xReadsToday(db: DbExecutor, now = new Date()): Promise<num
 }
 
 /** A short error description that never carries SQL parameters or tokens. */
+/** "location.mention: Invalid input: expected string, received null" from a schema error anywhere in the chain. */
+function schemaIssues(error: unknown): string | null {
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 4; depth += 1) {
+    const issues = (current as { issues?: unknown }).issues;
+    if (Array.isArray(issues) && issues.length) {
+      return issues
+        .slice(0, 3)
+        .map((issue: { path?: PropertyKey[]; message?: string }) => `${(issue.path ?? []).map(String).join(".") || "(root)"}: ${issue.message ?? "invalid"}`)
+        .join("; ");
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     const cause = (error as Error & { cause?: unknown }).cause;
     const base = error.message.split("\n")[0] ?? error.name;
-    const extra = cause instanceof Error ? ` (${cause.message.split("\n")[0]})` : "";
+    // A model answer that missed the schema: which fields, not the answer itself (it fills the whole message).
+    const issues = schemaIssues(error);
+    const extra = issues ? ` (${issues})` : cause instanceof Error ? ` (${cause.message.split("\n")[0]})` : "";
     return `${base}${extra}`.replace(/Bearer\s+[\w.-]+/gi, "Bearer ***").slice(0, 300);
   }
   return String(error).slice(0, 300);

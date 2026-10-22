@@ -88,11 +88,30 @@ export function sameName(a: string | null | undefined, b: string | null | undefi
 
 const STREET_KIND = /\s+(sokak|sokagi|sok|sk|caddesi|cadde|cad|cd|bulvari|bulvar|blv|yolu|yol)\.?$/;
 
-/** "Demir Sokağı" = "Demir Sokak", "Bağdat Cd." = "Bağdat Caddesi". */
+/**
+ * "Demir Sokağı" = "Demir Sokak", "Bağdat Cd." = "Bağdat Caddesi", "Hoca Ahmed Yesevi" = "Hoca Ahmet Yesevi",
+ * "Antalya - Burdur Yolu" = "Antalya-Burdur Yolu".
+ */
 export function sameStreet(a: string | null | undefined, b: string | null | undefined): boolean {
   if (!a || !b) return false;
-  const base = (value: string) => foldTurkish(normalizeAddressPart(value) ?? value).replace(STREET_KIND, "").replace(/\.$/, "").trim();
+  const base = (value: string) =>
+    foldTurkish(normalizeAddressPart(value) ?? value)
+      .replace(/\s*-\s*/g, "-")
+      .replace(STREET_KIND, "")
+      .replace(/\.$/, "")
+      .replace(/d\b/g, "t")
+      .trim();
   return base(a).length > 0 && base(a) === base(b);
+}
+
+const LOCALITY_WORDS = /\s+(mahallesi|mahalle|mah|koyu|koy|beldesi|belde|mevkii|mevkisi|mevki)$/;
+const LOCALITY_KINDS = /^(boundary:administrative|place:)/;
+
+/** "Kemalpaşa Mahallesi" = "Kemalpaşa", "Pirireis" = "Piri Reis"; but "Oğuzhan Mermer" is not "Oğuzhan". */
+export function sameLocality(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const clean = (value: string) => foldTurkish(value).replace(/['’]/g, "").replace(LOCALITY_WORDS, "").replace(/[^a-z0-9]/g, "");
+  return clean(a).length > 0 && clean(a) === clean(b);
 }
 
 const firstLabel = (candidate: GeocodeCandidate) => candidate.displayName.split(",")[0]?.trim() ?? "";
@@ -103,6 +122,8 @@ interface Area {
   candidate: GeocodeCandidate;
   box: BoundingBox;
   precision: LocationPrecision;
+  /** The "district" the story names is a belde or village, not an ilçe: its mahalles and villages lie around it. */
+  town?: boolean;
 }
 
 interface Pin {
@@ -178,8 +199,10 @@ export async function locate(geocoder: Geocoder, location: AnalysisLocation, sig
   // A large named place (an industrial zone) can be coarser than the mahalle already found.
   const best: Pin = pins[0] && precisionRank(pins[0].candidate.precision) <= precisionRank(hood ? "neighborhood" : area.precision) ? pins[0] : fallback;
 
-  // House hunters read the mahalle and ilçe first: name them when the story or the pin's service doesn't.
-  let neighborhood = hood?.candidate.neighborhood ?? parts.neighborhood ?? best.candidate.neighborhood ?? null;
+  // House hunters read the mahalle and ilçe first: name them when the story or the pin's service doesn't. A pin
+  // coarser than a mahalle (somewhere on a motorway in the district) has no mahalle of its own to name.
+  const ownNeighborhood = precisionRank(best.candidate.precision) <= precisionRank("neighborhood") ? best.candidate.neighborhood : null;
+  let neighborhood = hood?.candidate.neighborhood ?? parts.neighborhood ?? ownNeighborhood ?? null;
   let district = hood?.candidate.district ?? (best === fallback ? null : best.candidate.district) ?? null;
   if (!neighborhood && isPin(best.candidate.precision)) {
     const reverse = await safely(() => ask(geocoder.reverse(best.candidate.latitude, best.candidate.longitude, { signal })));
@@ -205,7 +228,7 @@ function finish(parts: LocationParts, pin: Pin | null, context: Context | null, 
   const foundDistrict = context?.district && !isCentralDistrict(context.district) && !sameName(context.district, province) ? context.district : null;
   const district =
     parts.district ?? (parts.centralDistrict ? null : ((pin.method === "road" ? pin.candidate.district : null) ?? areaDistrict ?? foundDistrict ?? null));
-  const neighborhood = context?.neighborhood ?? pin.candidate.neighborhood ?? null;
+  const neighborhood = context ? context.neighborhood : precisionRank(precision) <= precisionRank("neighborhood") ? pin.candidate.neighborhood : null;
   const confidence = Math.round(Math.min(1, Math.max(0.1, parts.confidence * METHOD_TRUST[pin.method])) * 100) / 100;
   return {
     geocode: {
@@ -256,15 +279,14 @@ async function findArea(geocoder: Geocoder, parts: LocationParts, ask: Ask, sign
     const found = await ask(geocoder.search([parts.district, parts.province].filter(Boolean).join(", "), { limit: 6, signal }));
     const inProvince = (candidate: GeocodeCandidate) => !parts.province || !candidate.province || sameName(candidate.province, parts.province);
     const named = (candidate: GeocodeCandidate) => sameName(candidate.district, parts.district) || sameName(firstLabel(candidate), parts.district);
-    const match =
-      found.find((candidate) => (candidate.precision === "district" || candidate.precision === "city") && named(candidate) && inProvince(candidate)) ??
-      found.find((candidate) => candidate.precision === "neighborhood" && named(candidate) && inProvince(candidate));
-    if (match) {
-      return {
-        candidate: { ...match, district: parts.district, province: match.province ?? parts.province },
-        box: match.bbox ?? boxAround(match, 8),
-        precision: "district",
-      };
+    const district = found.find((candidate) => (candidate.precision === "district" || candidate.precision === "city") && named(candidate) && inProvince(candidate));
+    if (district) {
+      return { candidate: { ...district, district: parts.district, province: district.province ?? parts.province }, box: district.bbox ?? boxAround(district, 8), precision: "district" };
+    }
+    // A belde written as the district ("Kozcağız"): its own box is a dot, its villages are a few kilometers out.
+    const town = found.find((candidate) => candidate.precision === "neighborhood" && named(candidate) && inProvince(candidate));
+    if (town) {
+      return { candidate: { ...town, district: parts.district, province: town.province ?? parts.province }, box: boxAround(town, 8), precision: "district", town: true };
     }
   }
   if (parts.province && parts.centralDistrict) {
@@ -294,11 +316,18 @@ async function findNeighborhood(geocoder: Geocoder, parts: LocationParts, area: 
   // OSM writes some mahalles with "Mahallesi" and some without: try the other spelling once.
   const bare = name.replace(/\s+mahallesi$/iu, "");
   const spellings = bare === name ? [name, `${name} Mahallesi`] : [name, bare];
-  const named = (candidate: GeocodeCandidate) => sameName(candidate.neighborhood, bare) || sameName(firstLabel(candidate), bare);
+  // A mahalle or village itself, by its own name: not a business or estate named after it ("Oğuzhan Mermer").
+  const named = (candidate: GeocodeCandidate) =>
+    (!candidate.kind || LOCALITY_KINDS.test(candidate.kind)) && (sameLocality(nameOf(candidate), bare) || sameLocality(firstLabel(candidate), bare));
   // The box reaches a little beyond the district: not the same-named mahalle next door.
-  const inDistrict = (candidate: GeocodeCandidate) => !parts.district || !candidate.district || sameName(candidate.district, parts.district);
-  for (const spelling of spellings) {
-    const found = await ask(geocoder.search([spelling, parts.district, parts.province].filter(Boolean).join(", "), { limit: 6, bbox: expandBox(area.box, 0.1), signal }));
+  const inDistrict = (candidate: GeocodeCandidate) => area.town || !parts.district || !candidate.district || sameName(candidate.district, parts.district);
+  // A belde's own mahalles carry its name, the villages around it belong to the ilçe and don't: try both.
+  const queries = spellings.flatMap((spelling) => [
+    [spelling, parts.district, parts.province],
+    ...(area.town ? [[spelling, parts.province]] : []),
+  ]);
+  for (const query of queries) {
+    const found = await ask(geocoder.search(query.filter(Boolean).join(", "), { limit: 6, bbox: expandBox(area.box, 0.1), signal }));
     const matches = found.filter((candidate) => (candidate.precision === "neighborhood" || candidate.precision === "district") && named(candidate) && inDistrict(candidate));
     if (matches.length === 0) continue;
     // A province has many "Hisar"s and "Cumhuriyet Mahallesi"s: pick one only when the story says which.
@@ -454,15 +483,20 @@ async function placePin(geocoder: Geocoder, parts: LocationParts, area: Area, sc
       precisionRank(a.candidate.precision) - precisionRank(b.candidate.precision) ||
       distanceKm(a.candidate, near) - distanceKm(b.candidate, near),
   );
-  // Two "BİM"s, two "Merkez Camii"s: the story doesn't say which, so neither.
   const best = hits.filter((hit) => hit.score === hits[0]!.score).map((hit) => hit.candidate);
+  // An industrial zone and the named parts inside it are one place: the zone.
+  const whole = best.find((outer) => outer.bbox && best.every((inner) => inner === outer || boxContains(expandBox(outer.bbox!, 0.05), inner)));
+  if (whole) return { candidate: whole, method: "place" };
+  // Two "BİM"s, two "Merkez Camii"s: the story doesn't say which, so neither.
   if (clusterPoints(best, 0.5).length > 1) return null;
   return { candidate: best[0]!, method: "place" };
 }
 
 async function streetPin(geocoder: Geocoder, parts: LocationParts, scope: BoundingBox, near: Point, inNeighborhood: boolean, ask: Ask, signal?: AbortSignal): Promise<Pin | null> {
   const street = parts.street!;
-  const matches = (candidate: GeocodeCandidate) => isPin(candidate.precision) && (sameStreet(candidate.street, street) || sameStreet(firstLabel(candidate), street));
+  // The street, or an address on it; not a business that happens to share its name ("Kazlıçeşme" the office).
+  const matches = (candidate: GeocodeCandidate) =>
+    isPin(candidate.precision) && (sameStreet(candidate.street, street) || (Boolean(candidate.kind?.startsWith("highway:")) && sameStreet(firstLabel(candidate), street)));
   let stretches: GeocodeCandidate[] = [];
   for (const spelling of streetSpellings(street)) {
     stretches = (await ask(geocoder.search(spelling, { bbox: scope, limit: 8, signal }))).filter(matches);
@@ -472,6 +506,11 @@ async function streetPin(geocoder: Geocoder, parts: LocationParts, scope: Boundi
   if (stretches.length === 0 && !isNumberedStreet(street) && base && base !== street && base.length >= 3) {
     // OSM may spell the street differently ("Demir Sokağı"): search the name alone and keep the same street.
     stretches = (await ask(geocoder.search(base, { bbox: scope, limit: 10, signal }))).filter(matches);
+  }
+  if (stretches.length === 0 && geocoder.place) {
+    // Photon forgives spelling: "Hoca Ahmet Yesevi Caddesi" finds OSM's "Hoca Ahmed Yesevi Caddesi".
+    const found = await ask(geocoder.place(street, { bbox: scope, near, signal }));
+    stretches = found.filter((candidate) => Boolean(candidate.kind?.startsWith("highway:")) && boxContains(scope, candidate) && matches(candidate));
   }
   if (stretches.length) {
     if (clusterPoints(stretches, 0.6).length > 1 && !inNeighborhood) return null;
@@ -499,10 +538,14 @@ async function roadPin(geocoder: Geocoder, parts: LocationParts, area: Area, ask
     if (sectionArea) box = sectionArea.bbox ? expandBox(sectionArea.bbox, 0.25) : boxAround(sectionArea, 2.5);
   }
   const center: Point = { latitude: (box.north + box.south) / 2, longitude: (box.east + box.west) / 2 };
+  // The stretch is as precise as the section is small: a köy's few hundred meters, a district's kilometers of
+  // motorway; without a section, anywhere on the road in the district.
+  const sectionSize = sectionArea ? boxSizeKm(sectionArea.bbox ?? boxAround(sectionArea, 1)) : null;
+  const precision: LocationPrecision = sectionSize === null ? "district" : sectionSize <= 0.6 ? "street" : sectionSize <= 2.5 ? "neighborhood" : "district";
   // The section names the district the stretch is in ("Avcılar mevkii" → Avcılar).
   const located = (line: GeocodeCandidate): Pin => {
     const district = sectionArea?.precision === "district" ? (sectionArea.district ?? firstLabel(sectionArea)) : line.district;
-    return { candidate: { ...line, precision: "street", district, province: line.province ?? sectionArea?.province ?? null }, method: "road" };
+    return { candidate: { ...line, precision, district, province: line.province ?? sectionArea?.province ?? null }, method: "road" };
   };
   for (const name of roadNames(parts.road)) {
     const found = await ask(geocoder.search(name, { bbox: box, limit: 10, signal }));
