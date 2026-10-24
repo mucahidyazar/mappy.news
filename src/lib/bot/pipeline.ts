@@ -6,15 +6,16 @@ import { botEvents, botItems, categories, geocodeCache, news, newsViews, sources
 import type { AppDatabase } from "@/lib/db/types";
 import { precisionRank } from "@/lib/domain/location";
 import { foldTurkish } from "@/lib/domain/text";
-import type { BotAnalysis, ParentSuggestion } from "@/lib/domain/types";
+import type { BotAnalysis, MergeDecisionRecord, ParentSuggestion } from "@/lib/domain/types";
 import type { Geocoder } from "@/lib/geo/geocoder";
-import { addCitation, createNews } from "@/lib/news/write";
+import { addCitation, createNews, raiseCasualties } from "@/lib/news/write";
 
 import { type AiKeys, createModel, estimateCost, providerRefusal } from "./ai";
 import { analyzeEntry, type AnalyzeResult, type PromptCategory } from "./analyze";
-import { decideDedupe, type DedupeSubject, loadDedupeCandidates } from "./dedupe";
+import { type DedupeCandidate, type DedupeDecision, decideDedupe, type DedupeSubject, loadDedupeCandidates, rankCandidates } from "./dedupe";
 import { aiSpendToday, emitEvent, errorMessage, utcDayStart, xReadsToday } from "./events";
 import { locate } from "./locate";
+import { decideMerge, MERGE_CANDIDATES, type MergeResult, type MergeSubject } from "./merge";
 import type { SafeFetchOptions } from "./net";
 import { screenEntry } from "./screen";
 import { type AiPause, autoPublishActive, type BotSettings } from "./settings";
@@ -41,6 +42,7 @@ export interface BotContext {
   now?: () => Date;
   /** Replaced in tests. */
   analyze?: (input: Parameters<typeof analyzeEntry>[0]) => Promise<AnalyzeResult>;
+  decideMerge?: (input: Parameters<typeof decideMerge>[0]) => Promise<MergeResult>;
   /** Replaced in tests: HTTP and DNS for feeds and the X API. */
   net?: Pick<SafeFetchOptions, "fetchImpl" | "resolve">;
   log?: (message: string) => void;
@@ -312,6 +314,124 @@ async function publishedByBotToday(ctx: BotContext) {
   return row?.count ?? 0;
 }
 
+/** Below this similarity a story isn't worth the merge agent's attention. */
+const MERGE_GATE = 0.3;
+
+interface Relation {
+  /** The story this report repeats: it becomes one of its sources. */
+  duplicateOf: DedupeCandidate | null;
+  /** The root story this report updates: it is attached to it. */
+  updateOf: string | null;
+  /** A link left for an editor to confirm. */
+  suggestion: ParentSuggestion | null;
+  /** The merge agent's verdict, when it was asked. */
+  merge: MergeDecisionRecord | null;
+  score: number;
+  reason: string;
+}
+
+function ruleRelation(decision: DedupeDecision): Relation {
+  const target = decision.target;
+  return {
+    duplicateOf: decision.kind === "duplicate" ? target : null,
+    updateOf: null,
+    suggestion:
+      decision.kind === "follow_up" && target
+        ? { newsId: target.parentId ?? target.id, relation: "update", confidence: decision.score, reason: decision.reason }
+        : null,
+    merge: null,
+    score: decision.score,
+    reason: decision.reason,
+  };
+}
+
+/**
+ * How a report relates to similar stories. By rule (near-certain repeats merge, likely updates become suggestions),
+ * or, with `merge.auto`, as the AI decides: carried out when it is sure enough, a suggestion otherwise. When the
+ * AI can't be asked the rule decides, so the analysis already paid for is not lost.
+ */
+async function relate(
+  ctx: BotContext,
+  processing: ProcessingContext,
+  input: { item: Item; source: Source; model: NonNullable<ReturnType<typeof createModel>>; subject: DedupeSubject; merge: MergeSubject; candidates: DedupeCandidate[] },
+): Promise<Relation> {
+  const { settings } = ctx;
+  const decision = decideDedupe(input.subject, input.candidates);
+  if (!settings.merge.auto || decision.reason === "same_url") return ruleRelation(decision);
+  const related = rankCandidates(input.subject, input.candidates)
+    .filter((entry) => entry.score >= MERGE_GATE)
+    .slice(0, MERGE_CANDIDATES);
+  if (related.length === 0) return { duplicateOf: null, updateOf: null, suggestion: null, merge: null, score: decision.score, reason: "no_related" };
+
+  let result: MergeResult;
+  try {
+    result = await (ctx.decideMerge ?? decideMerge)({
+      model: input.model,
+      provider: settings.ai.provider,
+      effort: settings.ai.effort,
+      subject: input.merge,
+      candidates: related.map((entry) => entry.candidate),
+      signal: ctx.signal,
+    });
+  } catch (error) {
+    if (ctx.signal?.aborted) throw error;
+    const refusal = providerRefusal(error);
+    if (refusal) {
+      // The provider stopped answering mid-item: the next items wait, this one is decided by rule.
+      processing.state.aiPause = {
+        kind: refusal.kind,
+        message: refusal.message,
+        provider: settings.ai.provider,
+        model: settings.ai.model,
+        until: new Date(now(ctx).getTime() + refusal.retryAfterMs).toISOString(),
+      };
+    }
+    await emitEvent(ctx.db, { code: "ai.failed", level: "warn", itemId: input.item.id, sourceId: input.source.id, message: errorMessage(error), model: settings.ai.model, data: { purpose: "merge" } });
+    return ruleRelation(decision);
+  }
+
+  const { verdict } = result;
+  const sure = verdict.confidence >= settings.merge.minConfidence;
+  const applied = verdict.action === "new" || sure;
+  const merge: MergeDecisionRecord = {
+    action: verdict.action,
+    targetId: verdict.target?.id ?? null,
+    confidence: verdict.confidence,
+    reason: verdict.reason,
+    model: settings.ai.model,
+    applied,
+  };
+  await emitEvent(ctx.db, {
+    code: "ai.call",
+    itemId: input.item.id,
+    sourceId: input.source.id,
+    model: settings.ai.model,
+    inputTokens: result.usage?.inputTokens ?? null,
+    outputTokens: result.usage?.outputTokens ?? null,
+    costUsd: estimateCost(result.usage, settings.ai, now(ctx)),
+    durationMs: result.durationMs,
+    data: { purpose: "merge", action: verdict.action, score: verdict.confidence, applied },
+  });
+
+  const target = verdict.target;
+  const root = target ? (target.parentId ?? target.id) : null;
+  const score = related[0]?.score ?? 0;
+  if (!target || verdict.action === "new") return { duplicateOf: null, updateOf: null, suggestion: null, merge, score, reason: "ai_new" };
+  if (!sure) {
+    return {
+      duplicateOf: null,
+      updateOf: null,
+      suggestion: { newsId: root!, relation: verdict.action === "duplicate" ? "duplicate" : "update", confidence: verdict.confidence, reason: verdict.reason },
+      merge,
+      score,
+      reason: "ai_unsure",
+    };
+  }
+  return verdict.action === "duplicate"
+    ? { duplicateOf: target, updateOf: null, suggestion: null, merge, score, reason: "ai_duplicate" }
+    : { duplicateOf: null, updateOf: root, suggestion: null, merge, score, reason: "ai_update" };
+}
+
 /** Runs one leased item through screening, analysis, location, de-duplication and publishing. */
 export async function processItem(ctx: BotContext, processing: ProcessingContext, item: Item, source: Source): Promise<Item["status"]> {
   const { settings } = ctx;
@@ -470,27 +590,53 @@ export async function processItem(ctx: BotContext, processing: ProcessingContext
       province: placed.geocode?.province ?? analysis.location.province,
       district: placed.geocode?.district ?? analysis.location.district,
     };
-    const decision = decideDedupe(subject, await loadDedupeCandidates(ctx.db, subject));
+    const relation = await relate(ctx, processing, {
+      item,
+      source,
+      model,
+      subject,
+      merge: {
+        title: analysis.title,
+        summary: analysis.summary,
+        content: analysis.content,
+        categoryKey: category.key,
+        occurredAt,
+        locationLabel: placed.label,
+        casualties: analysis.casualties,
+      },
+      candidates: await loadDedupeCandidates(ctx.db, subject),
+    });
+    // The verdict travels with the report, for editors and for the item log.
+    const recorded: BotAnalysis = relation.merge ? { ...analysis, merge: relation.merge } : analysis;
+    const by = relation.merge ? "ai" : "rule";
 
-    if (decision.kind === "duplicate" && decision.target) {
+    if (relation.duplicateOf) {
+      const target = relation.duplicateOf;
       if (item.url) {
-        await addCitation(ctx.db, decision.target.id, { url: item.url, title: item.title ?? analysis.title, publisherName: source.name, publishedAt: item.publishedAt, sourceId: source.id });
+        await addCitation(ctx.db, target.id, { url: item.url, title: item.title ?? analysis.title, publisherName: source.name, publishedAt: item.publishedAt, sourceId: source.id });
       }
-      await finish(ctx, item, { status: "duplicate", newsId: decision.target.id, analysis, geocode: placed.geocode, rejectionReason: decision.reason });
-      await emitEvent(ctx.db, { code: "item.duplicate", itemId: item.id, sourceId: source.id, newsId: decision.target.id, data: { score: decision.score } });
+      await raiseCasualties(ctx.db, target.id, analysis.casualties);
+      await finish(ctx, item, { status: "duplicate", newsId: target.id, analysis: recorded, geocode: placed.geocode, rejectionReason: relation.reason });
+      await emitEvent(ctx.db, {
+        code: "item.duplicate",
+        itemId: item.id,
+        sourceId: source.id,
+        newsId: target.id,
+        data: { score: relation.merge?.confidence ?? relation.score, by, reason: relation.merge?.reason ?? null, title: target.title },
+      });
       return "duplicate";
     }
 
-    const parentSuggestion: ParentSuggestion | null =
-      decision.kind === "follow_up" && decision.target
-        ? { newsId: decision.target.parentId ?? decision.target.id, relation: "update", confidence: decision.score, reason: decision.reason }
-        : null;
+    const parentSuggestion = relation.suggestion;
 
     if (settings.dryRun) {
-      await finish(ctx, item, { status: "rejected", rejectionReason: "dry_run", analysis, geocode: placed.geocode, parentSuggestion });
-      await emitEvent(ctx.db, { code: "item.analyzed", itemId: item.id, sourceId: source.id, data: { dryRun: true, decision: decision.kind } });
+      await finish(ctx, item, { status: "rejected", rejectionReason: "dry_run", analysis: recorded, geocode: placed.geocode, parentSuggestion });
+      await emitEvent(ctx.db, { code: "item.analyzed", itemId: item.id, sourceId: source.id, data: { dryRun: true, decision: relation.reason } });
       return "rejected";
     }
+
+    // An update goes out on its own only when the story it updates is already public.
+    const [updated] = relation.updateOf ? await ctx.db.select({ status: news.status }).from(news).where(eq(news.id, relation.updateOf)).limit(1) : [];
 
     const sensitive = analysis.isSensitive || category.isSensitive;
     const autoPublish =
@@ -498,6 +644,7 @@ export async function processItem(ctx: BotContext, processing: ProcessingContext
       (settings.autoPublish.mode === "all" || source.autoPublish) &&
       Boolean(placed.geocode) &&
       !parentSuggestion &&
+      (!relation.updateOf || updated?.status === "published") &&
       analysis.editorialScore >= settings.autoPublish.minScore &&
       placed.confidence >= settings.autoPublish.minLocationConfidence &&
       precisionRank(placed.precision) <= precisionRank(settings.autoPublish.minPrecision) &&
@@ -540,8 +687,11 @@ export async function processItem(ctx: BotContext, processing: ProcessingContext
         sensitivityType: analysis.sensitivityType,
         editorialScore: analysis.editorialScore,
         editorialConfidence: analysis.confidence,
-        aiAnalysis: analysis,
+        aiAnalysis: recorded,
+        casualties: analysis.casualties,
         dedupeKey,
+        parentId: relation.updateOf,
+        relation: relation.updateOf ? "update" : null,
         suggestedParentId: parentSuggestion?.newsId ?? null,
         suggestedParentConfidence: parentSuggestion?.confidence ?? null,
         suggestedParentReason: parentSuggestion?.reason ?? null,
@@ -551,13 +701,19 @@ export async function processItem(ctx: BotContext, processing: ProcessingContext
     });
 
     const status = autoPublish ? "published" : "queued";
-    await finish(ctx, item, { status, newsId: story.id, analysis, geocode: placed.geocode, parentSuggestion });
+    await finish(ctx, item, { status, newsId: story.id, analysis: recorded, geocode: placed.geocode, parentSuggestion });
     await emitEvent(ctx.db, {
       code: autoPublish ? "item.published" : "item.queued",
       itemId: item.id,
       sourceId: source.id,
       newsId: story.id,
-      data: { title: analysis.title, score: analysis.editorialScore, location: placed.label, followUp: Boolean(parentSuggestion) },
+      data: {
+        title: analysis.title,
+        score: analysis.editorialScore,
+        location: placed.label,
+        followUp: Boolean(parentSuggestion),
+        ...(relation.updateOf ? { by, linkedTo: relation.updateOf, reason: relation.merge?.reason ?? null } : {}),
+      },
     });
     return status;
   } catch (error) {

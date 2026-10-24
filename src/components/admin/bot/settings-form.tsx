@@ -216,6 +216,40 @@ export function BotSettingsForm({ initial, providers, xConfigured }: { initial: 
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">{t("merge")}</CardTitle>
+          <CardDescription>{t("mergeDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FieldGroup className="gap-5">
+            <label className="flex items-start gap-3 text-sm">
+              <Switch checked={settings.merge.auto} onCheckedChange={(auto) => patch("merge", { auto })} className="mt-0.5" />
+              <span>
+                {t("mergeAuto")}
+                <span className="block text-xs text-muted-foreground">{t("mergeAutoHint")}</span>
+              </span>
+            </label>
+            {settings.merge.auto ? (
+              <Field>
+                <div className="flex items-center justify-between">
+                  <FieldLabel>{t("mergeMinConfidence")}</FieldLabel>
+                  <Percent value={settings.merge.minConfidence} />
+                </div>
+                <Slider
+                  min={0.5}
+                  max={1}
+                  step={0.05}
+                  value={[settings.merge.minConfidence]}
+                  onValueChange={([value]) => patch("merge", { minConfidence: value ?? 0.75 })}
+                />
+                <FieldDescription>{t("mergeMinConfidenceHint")}</FieldDescription>
+              </Field>
+            ) : null}
+          </FieldGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">{t("autoPublish")}</CardTitle>
           <CardDescription>{t("autoPublishDescription")}</CardDescription>
         </CardHeader>

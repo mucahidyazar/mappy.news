@@ -19,12 +19,14 @@ import type { ReactNode } from "react";
 import { DeskClock } from "@/components/admin/dashboard/desk-clock";
 import { DeskMapLoader } from "@/components/admin/dashboard/desk-map-loader";
 import { Panel } from "@/components/layout/container";
+import { CasualtyChips } from "@/components/news/casualties";
 import { RelativeTime } from "@/components/news/relative-time";
 import { Button } from "@/components/ui/button";
 import { translateDynamic } from "@/i18n/dynamic";
 import { Link } from "@/i18n/navigation";
 import { can } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
+import { categoryName } from "@/lib/news/format";
 import { cn } from "@/lib/utils";
 import { getBotOverview } from "@/server/admin/bot";
 import { getDashboard } from "@/server/admin/dashboard";
@@ -73,8 +75,9 @@ export default async function AdminDashboard({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
   const viewer = await requirePermission("admin.access");
-  const [t, tAudit, tNav, tSteps, tProviders, format, now] = await Promise.all([
+  const [t, tCasualties, tAudit, tNav, tSteps, tProviders, format, now] = await Promise.all([
     getTranslations("admin.dashboard"),
+    getTranslations("casualties"),
     getTranslations("admin.audit"),
     getTranslations("admin.nav"),
     getTranslations("admin.bot.steps"),
@@ -83,7 +86,8 @@ export default async function AdminDashboard({ params }: { params: Promise<{ loc
     getNow(),
   ]);
   const [dashboard, bot] = await Promise.all([getDashboard(), can(viewer.role, "bot.view") ? getBotOverview() : Promise.resolve(null)]);
-  const { counts, people, days, mapPoints, oldestPendingAt, recent } = dashboard;
+  const { counts, people, days, mapPoints, oldestPendingAt, recent, casualties } = dashboard;
+  const casualtyMax = Math.max(1, ...casualties.byCategory.map((row) => row.deaths + row.injured));
   const pending = counts.pendingUser + counts.pendingBot;
   const mapPending = mapPoints.filter((point) => point.status === "pending").length;
   const max = Math.max(1, ...days.map((day) => day.user + day.bot + day.admin));
@@ -178,72 +182,119 @@ export default async function AdminDashboard({ params }: { params: Promise<{ loc
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <Panel className="flex flex-col p-6">
-          <header className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-display text-[17px] font-bold tracking-tight">{t("chartTitle")}</h2>
-              <p className="mt-1 font-mono text-[10.5px] tracking-[0.12em] text-muted-foreground uppercase">{t("chartTotal", { count: total14 })}</p>
+        <div className="flex min-w-0 flex-col gap-5">
+          <Panel className="flex flex-col p-6">
+            <header className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-[17px] font-bold tracking-tight">{t("chartTitle")}</h2>
+                <p className="mt-1 font-mono text-[10.5px] tracking-[0.12em] text-muted-foreground uppercase">{t("chartTotal", { count: total14 })}</p>
+              </div>
+              <ul className="flex gap-3 text-xs text-muted-foreground">
+                {(["bot", "user", "admin"] as const).map((origin) => (
+                  <li key={origin} className="flex items-center gap-1.5">
+                    <span className={cn("size-2.5 rounded-[3px]", origin === "bot" ? "bg-chart-1" : origin === "user" ? "bg-chart-2" : "bg-chart-3")} />
+                    {t(`legend.${origin}`)}
+                  </li>
+                ))}
+              </ul>
+            </header>
+            <div className="relative mt-7 min-h-52 flex-1">
+              <div aria-hidden className="absolute inset-0 flex flex-col justify-between">
+                {[0, 1, 2, 3].map((line) => (
+                  <span key={line} className="border-t border-dashed border-border/80" />
+                ))}
+              </div>
+              <span aria-hidden className="absolute -top-2 left-0 bg-card pr-2 font-mono text-[10px] text-muted-foreground tabular-nums">
+                {max}
+              </span>
+              <ol className="relative flex h-full items-end gap-1.5 sm:gap-2.5" aria-label={t("chartTitle")}>
+                {days.map((day, index) => {
+                  const total = day.user + day.bot + day.admin;
+                  const today = index === days.length - 1;
+                  return (
+                    <li
+                      key={day.day}
+                      className="group flex h-full flex-1 flex-col justify-end"
+                      title={`${format.dateTime(new Date(day.day), { day: "numeric", month: "long" })}: ${total}`}
+                    >
+                      {total ? (
+                        <div
+                          className={cn(
+                            "flex w-full flex-col overflow-hidden rounded-t-md rounded-b-[3px] transition-[filter] duration-200 group-hover:brightness-115",
+                            today && "ring-2 ring-primary/35 ring-offset-2 ring-offset-card",
+                          )}
+                          style={{ height: `${Math.max(4, (total / max) * 100)}%` }}
+                        >
+                          <span className="bg-chart-3" style={{ flexGrow: day.admin }} />
+                          <span className="bg-chart-2" style={{ flexGrow: day.user }} />
+                          <span className="bg-chart-1" style={{ flexGrow: day.bot }} />
+                        </div>
+                      ) : (
+                        <span className="h-[3px] w-full rounded-full bg-foreground/10" />
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
-            <ul className="flex gap-3 text-xs text-muted-foreground">
-              {(["bot", "user", "admin"] as const).map((origin) => (
-                <li key={origin} className="flex items-center gap-1.5">
-                  <span className={cn("size-2.5 rounded-[3px]", origin === "bot" ? "bg-chart-1" : origin === "user" ? "bg-chart-2" : "bg-chart-3")} />
-                  {t(`legend.${origin}`)}
-                </li>
-              ))}
-            </ul>
-          </header>
-          <div className="relative mt-7 min-h-52 flex-1">
-            <div aria-hidden className="absolute inset-0 flex flex-col justify-between">
-              {[0, 1, 2, 3].map((line) => (
-                <span key={line} className="border-t border-dashed border-border/80" />
-              ))}
-            </div>
-            <span aria-hidden className="absolute -top-2 left-0 bg-card pr-2 font-mono text-[10px] text-muted-foreground tabular-nums">
-              {max}
-            </span>
-            <ol className="relative flex h-full items-end gap-1.5 sm:gap-2.5" aria-label={t("chartTitle")}>
+            <ol aria-hidden className="mt-2.5 flex gap-1.5 font-mono text-[10px] text-muted-foreground tabular-nums sm:gap-2.5">
               {days.map((day, index) => {
-                const total = day.user + day.bot + day.admin;
                 const today = index === days.length - 1;
                 return (
-                  <li
-                    key={day.day}
-                    className="group flex h-full flex-1 flex-col justify-end"
-                    title={`${format.dateTime(new Date(day.day), { day: "numeric", month: "long" })}: ${total}`}
-                  >
-                    {total ? (
-                      <div
-                        className={cn(
-                          "flex w-full flex-col overflow-hidden rounded-t-md rounded-b-[3px] transition-[filter] duration-200 group-hover:brightness-115",
-                          today && "ring-2 ring-primary/35 ring-offset-2 ring-offset-card",
-                        )}
-                        style={{ height: `${Math.max(4, (total / max) * 100)}%` }}
-                      >
-                        <span className="bg-chart-3" style={{ flexGrow: day.admin }} />
-                        <span className="bg-chart-2" style={{ flexGrow: day.user }} />
-                        <span className="bg-chart-1" style={{ flexGrow: day.bot }} />
-                      </div>
-                    ) : (
-                      <span className="h-[3px] w-full rounded-full bg-foreground/10" />
-                    )}
+                  <li key={day.day} className={cn("flex-1 text-center", today && "font-semibold text-foreground")}>
+                    <span className={cn(today && "sm:hidden")}>{format.dateTime(new Date(day.day), { day: "numeric" })}</span>
+                    {today ? <span className="hidden sm:inline">{t("today")}</span> : null}
                   </li>
                 );
               })}
             </ol>
-          </div>
-          <ol aria-hidden className="mt-2.5 flex gap-1.5 font-mono text-[10px] text-muted-foreground tabular-nums sm:gap-2.5">
-            {days.map((day, index) => {
-              const today = index === days.length - 1;
-              return (
-                <li key={day.day} className={cn("flex-1 text-center", today && "font-semibold text-foreground")}>
-                  <span className={cn(today && "sm:hidden")}>{format.dateTime(new Date(day.day), { day: "numeric" })}</span>
-                  {today ? <span className="hidden sm:inline">{t("today")}</span> : null}
-                </li>
-              );
-            })}
-          </ol>
-        </Panel>
+          </Panel>
+
+          {/* Killed and injured in the week's published incidents. */}
+          <Panel className="p-6">
+            <header className="flex flex-wrap items-start justify-between gap-3">
+              <h2 className="font-display text-[17px] font-bold tracking-tight">{t("casualtiesTitle")}</h2>
+              <p className="font-mono text-[10.5px] tracking-[0.12em] text-muted-foreground uppercase">{t("casualtiesRange")}</p>
+            </header>
+            {casualties.deaths + casualties.injured === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">{t("casualtiesEmpty")}</p>
+            ) : (
+              <div className="mt-5 grid gap-6 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+                <div>
+                  <dl className="grid grid-cols-2 overflow-hidden rounded-xl border bg-background/40">
+                    {(["deaths", "injured"] as const).map((kind, index) => (
+                      <div key={kind} className={cn("relative px-4 pt-4 pb-3.5", index > 0 && "border-l")}>
+                        <span aria-hidden className={cn("absolute inset-x-0 top-0 h-0.5", kind === "deaths" ? "bg-destructive" : "bg-warning")} />
+                        <dt className="font-mono text-[10.5px] tracking-[0.14em] text-muted-foreground uppercase">{tCasualties(`${kind}Label`)}</dt>
+                        <dd className="mt-2 font-display text-[2rem] leading-none font-bold tracking-[-0.03em] tabular-nums">{format.number(casualties[kind])}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                    {t("casualtiesIncidents", { count: casualties.incidents })} · {t("casualties24h", { deaths: casualties.deaths24h, injured: casualties.injured24h })}
+                  </p>
+                </div>
+                <ul className="space-y-3.5">
+                  {casualties.byCategory.slice(0, 5).map((row) => (
+                    <li key={row.key} className="space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                          <span className="truncate">{categoryName(row, locale)}</span>
+                        </span>
+                        <CasualtyChips deaths={row.deaths} injured={row.injured} className="shrink-0 text-xs text-muted-foreground" />
+                      </div>
+                      <div aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+                        <span className="bg-destructive" style={{ width: `${(row.deaths / casualtyMax) * 100}%` }} />
+                        <span className="bg-warning" style={{ width: `${(row.injured / casualtyMax) * 100}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Panel>
+        </div>
 
         <div className="flex flex-col gap-5">
           {bot && botState ? (

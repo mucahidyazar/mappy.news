@@ -30,6 +30,7 @@ const raw: RawAnalysis = {
   isSensitive: false,
   sensitivityType: null,
   keywords: ["yangın", " itfaiye ", "", "a", "b", "c", "d", "e"],
+  casualties: { deaths: 0, injured: 2 },
 };
 
 const context = { categoryKeys: ["fire", "other_incidents"], fallbackTitle: "Akıştaki başlık", publishedAt: new Date("2026-10-21T07:00:00Z"), model: "test-model", now: new Date("2026-10-21T12:00:00Z") };
@@ -80,6 +81,7 @@ describe("normalizeAnalysis", () => {
       isSensitive: null,
       sensitivityType: null,
       keywords: null,
+      casualties: null,
     });
     expect(normalizeAnalysis(parsed, context)).toMatchObject({
       isIncident: false,
@@ -94,6 +96,12 @@ describe("normalizeAnalysis", () => {
     });
     const unplaced = analysisSchema(context.categoryKeys).parse({ ...raw, location: { ...raw.location, mention: null, precision: null, confidence: null, evidence: null } });
     expect(normalizeAnalysis(unplaced, context).location).toMatchObject({ mention: "", precision: "unknown", confidence: 0 });
+  });
+
+  it("keeps head counts the text gave and nothing else", () => {
+    expect(normalizeAnalysis(raw, context).casualties).toEqual({ deaths: 0, injured: 2 });
+    expect(normalizeAnalysis({ ...raw, casualties: { deaths: 2.6, injured: -1 } }, context).casualties).toEqual({ deaths: 3, injured: null });
+    expect(normalizeAnalysis({ ...raw, casualties: null }, context).casualties).toEqual({ deaths: null, injured: null });
   });
 
   it("always gives rejected posts a reason", () => {

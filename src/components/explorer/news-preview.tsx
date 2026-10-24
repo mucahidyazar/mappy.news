@@ -4,6 +4,7 @@ import { ArrowRight, Layers, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { CategoryIcon } from "@/components/icons/category-icon";
+import { CasualtyChips } from "@/components/news/casualties";
 import { LocationLabel } from "@/components/news/location-label";
 import { RelativeTime } from "@/components/news/relative-time";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ export function NewsPreview({
         <span aria-hidden>·</span>
         <RelativeTime value={item.occurredAt} />
       </div>
+      <CasualtyChips deaths={item.deaths} injured={item.injured} className="text-xs font-medium" />
       <footer className="mt-0.5 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           {item.sourceName ? <span className="truncate">{item.sourceName}</span> : null}

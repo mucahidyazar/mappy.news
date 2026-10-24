@@ -29,6 +29,11 @@ export interface DedupeCandidate {
   province: string | null;
   district: string | null;
   urls: string[];
+  /** What the merge agent is shown besides the matching fields. */
+  status?: string;
+  locationLabel?: string | null;
+  deaths?: number | null;
+  injured?: number | null;
 }
 
 export interface DedupeDecision {
@@ -60,6 +65,13 @@ export function scoreCandidate(subject: DedupeSubject, candidate: DedupeCandidat
 
   const score = text * 0.55 + place * 0.2 + time * 0.15 + category * 0.1;
   return { score: Math.round(score * 100) / 100, text };
+}
+
+/** Candidates with their scores, most similar first. */
+export function rankCandidates(subject: DedupeSubject, candidates: DedupeCandidate[]) {
+  return candidates
+    .map((candidate) => ({ candidate, ...scoreCandidate(subject, candidate) }))
+    .sort((a, b) => b.score - a.score);
 }
 
 /**
@@ -104,6 +116,10 @@ export async function loadDedupeCandidates(db: DbExecutor, subject: DedupeSubjec
       province: news.province,
       district: news.district,
       sourceUrl: news.sourceUrl,
+      status: news.status,
+      locationLabel: news.locationLabel,
+      deaths: news.deaths,
+      injured: news.injured,
     })
     .from(news)
     .innerJoin(categories, eq(news.categoryId, categories.id))
@@ -141,5 +157,9 @@ export async function loadDedupeCandidates(db: DbExecutor, subject: DedupeSubjec
     province: row.province,
     district: row.district,
     urls: [...(urls.get(row.id) ?? []), ...(row.sourceUrl ? [row.sourceUrl] : [])],
+    status: row.status,
+    locationLabel: row.locationLabel,
+    deaths: row.deaths,
+    injured: row.injured,
   }));
 }

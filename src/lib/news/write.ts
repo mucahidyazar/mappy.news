@@ -2,10 +2,10 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { categories, news, newsCitations, userProfiles } from "@/lib/db/schema";
 import type { DbExecutor } from "@/lib/db/types";
-import { type LocationPrecision, type NewsOrigin, POINTS } from "@/lib/domain/constants";
+import { type LocationPrecision, type NewsOrigin, type NewsRelation, POINTS } from "@/lib/domain/constants";
 import { formatLocationLabel, publicLocation } from "@/lib/domain/location";
 import { newsSlug, searchText } from "@/lib/domain/text";
-import type { BotAnalysis, NewsMedia } from "@/lib/domain/types";
+import type { BotAnalysis, Casualties, NewsMedia } from "@/lib/domain/types";
 import { awardPoints } from "@/lib/points";
 
 export interface NewsLocationFields {
@@ -71,7 +71,11 @@ export interface CreateNewsInput {
   editorialScore?: number | null;
   editorialConfidence?: number | null;
   aiAnalysis?: BotAnalysis | null;
+  casualties?: Casualties | null;
   dedupeKey?: string | null;
+  /** An update of an earlier incident: the root story it belongs to. */
+  parentId?: string | null;
+  relation?: NewsRelation | null;
   submittedById?: string | null;
   reviewedById?: string | null;
   suggestedParentId?: string | null;
@@ -107,7 +111,11 @@ export async function createNews(tx: DbExecutor, input: CreateNewsInput) {
       editorialScore: input.editorialScore ?? null,
       editorialConfidence: input.editorialConfidence ?? null,
       aiAnalysis: input.aiAnalysis ?? null,
+      deaths: input.casualties?.deaths ?? null,
+      injured: input.casualties?.injured ?? null,
       dedupeKey: input.dedupeKey ?? null,
+      parentId: input.parentId ?? null,
+      relation: input.parentId ? (input.relation ?? "update") : null,
       submittedById: input.submittedById ?? null,
       reviewedById: input.reviewedById ?? null,
       reviewedAt: input.reviewedById ? now : null,
@@ -160,6 +168,22 @@ export async function addCitation(
     .set({ citationCount: sql`${news.citationCount} + 1` })
     .where(eq(news.id, newsId));
   return true;
+}
+
+/**
+ * Another report of the same incident: its counts replace the story's where they are higher. Tolls rise as an
+ * incident unfolds; an editor corrects the rare downward revision by hand.
+ */
+export async function raiseCasualties(tx: DbExecutor, newsId: string, casualties: Casualties | null | undefined) {
+  if (casualties?.deaths == null && casualties?.injured == null) return;
+  // GREATEST ignores NULL: a count arriving for an unknown one is simply taken.
+  await tx
+    .update(news)
+    .set({
+      ...(casualties.deaths != null ? { deaths: sql`greatest(${news.deaths}, ${casualties.deaths})` } : {}),
+      ...(casualties.injured != null ? { injured: sql`greatest(${news.injured}, ${casualties.injured})` } : {}),
+    })
+    .where(eq(news.id, newsId));
 }
 
 /**

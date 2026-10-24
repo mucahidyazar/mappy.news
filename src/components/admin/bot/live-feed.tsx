@@ -69,7 +69,9 @@ export function LiveFeed({ initial }: { initial: BotEventRow[] }) {
   );
 
   function describe(event: BotEventRow) {
-    const key = `events.${event.code}`;
+    // The merge agent's own wording: its calls, and the stories it merged or attached.
+    const variant = event.code === "ai.call" && event.data.purpose === "merge" ? "_merge" : event.code.startsWith("item.") && event.data.by === "ai" ? "_ai" : "";
+    const key = `events.${event.code}${variant}`;
     const values = {
       source: event.sourceName ?? "—",
       stored: String(event.data.stored ?? 0),
@@ -81,7 +83,7 @@ export function LiveFeed({ initial }: { initial: BotEventRow[] }) {
       message: event.message ?? "",
       model: event.model ?? "",
     };
-    return translateDynamic(t, key, values) ?? `${event.code}${event.message ? `: ${event.message}` : ""}`;
+    return translateDynamic(t, key, values) ?? translateDynamic(t, `events.${event.code}`, values) ?? `${event.code}${event.message ? `: ${event.message}` : ""}`;
   }
 
   return (

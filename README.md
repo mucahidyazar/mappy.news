@@ -44,10 +44,21 @@ maintenance. One worker runs per database (PostgreSQL advisory lock); the admin 
 event feed (LISTEN/NOTIFY).
 
 For every item: cheap screening (age, length, incident keywords) → the story page is read when the feed only has a
-teaser → AI analysis (classification, a neutral Turkish write-up, every address part the text gives) → placing it on
-the map (below) → de-duplication (the same incident from another outlet becomes a source of the existing story;
-related reports get a suggested parent) → the review queue, or auto-publishing when it is switched on and every
-threshold passes (score, location confidence and precision, sensitivity, daily limit).
+teaser → AI analysis (classification, a neutral Turkish write-up, every address part the text gives, the number of
+people killed and injured) → placing it on the map (below) → de-duplication → the review queue, or auto-publishing
+when it is switched on and every threshold passes (score, location confidence and precision, sensitivity, daily
+limit).
+
+De-duplication: the same text or link from another feed always becomes a source of the existing story. For reports
+that only resemble earlier ones, **Admin → News bot → Settings → Duplicates and updates** decides who chooses. Off,
+near-certain repeats are merged by rule and the rest reaches editors as a suggestion ("attach as update" or "merge
+duplicate"). On, the model compares the report with the most similar stories of the same days and place
+(`src/lib/bot/merge.ts`) and merges a repeat, attaches an update or keeps a new incident apart by itself; below the
+confidence threshold it leaves a suggestion with its reason instead.
+
+Casualties: a story shows its incident's latest toll, the highest count of the story and its published updates
+(a repeat's higher count is carried over when it is merged). The map panel adds up the incidents in view and the
+admin overview those of the week, each incident once.
 
 The AI provider and model are chosen in **Admin → News bot → Settings**. Only that provider is used — there is no
 automatic fallback. When it refuses calls (no credit, a rejected key, a rate limit) analysis pauses, nothing is

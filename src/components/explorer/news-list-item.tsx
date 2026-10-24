@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { memo } from "react";
 
 import { CategoryBadgeIcon } from "@/components/icons/category-icon";
+import { CasualtyChips } from "@/components/news/casualties";
 import { LocationLabel } from "@/components/news/location-label";
 import { RelativeTime } from "@/components/news/relative-time";
 import type { CategoryDTO, MapNewsItem } from "@/lib/news/types";
@@ -46,6 +47,7 @@ export const NewsListItem = memo(function NewsListItem({ item, category, active,
             <RelativeTime value={item.occurredAt} className="shrink-0" />
           </span>
           <span className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
+            <CasualtyChips deaths={item.deaths} injured={item.injured} className="shrink-0 font-medium text-foreground/80" />
             {item.sourceName ? <span className="truncate">{item.sourceName}</span> : null}
             {item.citationCount > 1 ? (
               <span className="inline-flex shrink-0 items-center gap-0.5" title={t("citations", { count: item.citationCount })}>

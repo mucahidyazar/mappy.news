@@ -13,6 +13,15 @@ const optionalUrl = z
   .optional()
   .transform((value) => value || undefined);
 
+/** A head count from a number field; empty means the reports give no number. */
+const headCount = z
+  .number({ error: "headCount" })
+  .int({ error: "headCount" })
+  .min(0, { error: "headCount" })
+  .max(100_000, { error: "headCount" })
+  .nullish()
+  .transform((value) => value ?? null);
+
 const nullableText = (max: number) =>
   z
     .string()
@@ -88,6 +97,9 @@ export const newsEditSchema = z.object({
   imageUrl: optionalUrl,
   isSensitive: z.boolean(),
   isFeatured: z.boolean(),
+  /** People killed and injured; empty when the reports give no number. */
+  deaths: headCount,
+  injured: headCount,
 });
 
 export type NewsEditInput = z.input<typeof newsEditSchema>;

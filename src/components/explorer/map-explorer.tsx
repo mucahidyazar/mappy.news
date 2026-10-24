@@ -10,6 +10,7 @@ import { Logo } from "@/components/layout/logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { type MapBounds, NewsMap } from "@/components/map/news-map";
+import { CasualtyChips } from "@/components/news/casualties";
 import { ReportButton } from "@/components/report/report-button";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -17,6 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { zoomForPrecision } from "@/lib/domain/location";
+import { incidentTotals } from "@/lib/news/casualties";
 import type { CategoryDTO, MapNewsItem } from "@/lib/news/types";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +72,9 @@ export function MapExplorer({ categories }: { categories: CategoryDTO[] }) {
     return result;
   }, [items]);
   const visible = useMemo(() => (bounds ? items.filter((item) => inBounds(item, bounds)) : items), [items, bounds]);
+  // Killed and injured in the incidents on screen, each incident counted once.
+  const toll = useMemo(() => incidentTotals(visible), [visible]);
+  const tCasualties = useTranslations("casualties");
   // A selection whose story dropped out of the results (new filters, refetch) simply stops showing.
   const selected = useMemo(() => items.find((item) => item.id === selectedId) ?? null, [items, selectedId]);
 
@@ -249,6 +254,7 @@ export function MapExplorer({ categories }: { categories: CategoryDTO[] }) {
             <p className="truncate text-xs text-muted-foreground" aria-live="polite">
               {countLabel}
             </p>
+            {query.isPending ? null : <CasualtyChips deaths={toll.deaths} injured={toll.injured} label={tCasualties("inView")} className="mt-1 text-xs font-medium" />}
           </div>
           <div className="flex items-center gap-1">
             {query.isFetching && !query.isPending ? <Spinner className="size-4 text-muted-foreground" /> : null}
@@ -301,6 +307,7 @@ export function MapExplorer({ categories }: { categories: CategoryDTO[] }) {
           <DrawerHeader className="text-left">
             <DrawerTitle>{t("panelTitle")}</DrawerTitle>
             <DrawerDescription>{countLabel}</DrawerDescription>
+            <CasualtyChips deaths={toll.deaths} injured={toll.injured} label={tCasualties("inView")} className="text-xs font-medium" />
           </DrawerHeader>
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
             <NewsPanelBody {...panelState} {...panelHandlers} />

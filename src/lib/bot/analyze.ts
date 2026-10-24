@@ -8,7 +8,7 @@ import type { BotAnalysis } from "@/lib/domain/types";
 import { providerOptions, samplingTemperature } from "./ai";
 import type { AiEffort, AiProvider } from "./settings";
 
-export const PROMPT_VERSION = "analysis-2026-10-22a";
+export const PROMPT_VERSION = "analysis-2026-10-24a";
 
 const SENSITIVITY_TYPES = ["sexual_crime", "domestic_violence", "child", "suicide", "graphic", "other"] as const;
 
@@ -54,6 +54,12 @@ export function analysisSchema(categoryKeys: string[]) {
     isSensitive: z.boolean().nullable(),
     sensitivityType: z.enum(SENSITIVITY_TYPES).nullable(),
     keywords: z.array(z.string()).nullable().describe("En fazla 6 kısa anahtar kelime"),
+    casualties: z
+      .object({
+        deaths: z.number().nullable().describe("Metinde açıkça yazan ölü sayısı; yazmıyorsa null"),
+        injured: z.number().nullable().describe("Metinde açıkça yazan yaralı sayısı; yazmıyorsa null"),
+      })
+      .nullable(),
   });
 }
 
@@ -120,6 +126,11 @@ KONUM (en önemli bölüm):
 - İl yazmıyor ama ilçe adı tek bir ile aitse ve eminsen ili ekle; emin değilsen ekleme ve confidence değerini düşür.
 - Metinde olmayan bir yeri ekleme ve koordinat üretme; bilinmeyen alanlar null kalsın.
 
+KAYIPLAR:
+- casualties.deaths ve casualties.injured: metinde açıkça yazan ölü ve yaralı sayıları ("2 kişi hayatını kaybetti, 5 kişi yaralandı" → 2 ve 5). Failler ve şüpheliler de sayılır, hayvanlar sayılmaz.
+- "Ölen ya da yaralanan olmadı", "kimse yaralanmadı" → 0. Sayı verilmeden "yaralılar var" deniyorsa ya da hiç söz edilmiyorsa → null. Tahmin etme.
+- Sayı sonradan değiştiyse ("ölü sayısı 3'e yükseldi") son sayıyı yaz.
+
 PUANLAMA:
 - editorialScore (0–1): Somut, yeni, yerel bir olay ve açık bir konum varsa yüksek; belirsiz, eski ya da genel içerikte düşük.
 - confidence (0–1): Değerlendirmenin genel güvenilirliği. location.confidence (0–1): Konumun doğruluğuna güven.`;
@@ -155,6 +166,12 @@ ${input.entry.url ? `Bağlantı: ${input.entry.url}` : ""}
 function clamp01(value: unknown, fallback = 0): number {
   const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
   return Math.min(1, Math.max(0, number));
+}
+
+/** A head count as a whole number; null when the text gave none or the model invented something impossible. */
+function headCount(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return Math.min(Math.round(value), 100_000);
 }
 
 function cleanPart(value: string | null | undefined, max = 120): string | null {
@@ -215,6 +232,7 @@ export function normalizeAnalysis(
     isSensitive: Boolean(raw.isSensitive),
     sensitivityType: raw.sensitivityType ?? null,
     keywords: (raw.keywords ?? []).map((keyword) => normalizeWhitespace(keyword).slice(0, 40)).filter(Boolean).slice(0, 6),
+    casualties: { deaths: headCount(raw.casualties?.deaths), injured: headCount(raw.casualties?.injured) },
     model: context.model,
     promptVersion: PROMPT_VERSION,
   };

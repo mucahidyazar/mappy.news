@@ -42,7 +42,7 @@ export async function saveBotSettings(input: unknown): Promise<ActionResult> {
     const editor = await requirePermission("bot.manage");
     const settings = botSettingsSchema.parse(input);
     await writeBotSettings(db, settings, editor.id);
-    await audit(db, { actorId: editor.id, action: "bot.settings", targetType: "bot", data: { provider: settings.ai.provider, model: settings.ai.model, autoPublish: settings.autoPublish.mode } });
+    await audit(db, { actorId: editor.id, action: "bot.settings", targetType: "bot", data: { provider: settings.ai.provider, model: settings.ai.model, autoPublish: settings.autoPublish.mode, aiMerge: settings.merge.auto } });
     await emitEvent(db, { code: "settings.changed", data: { model: settings.ai.model, autoPublish: settings.autoPublish.mode, dryRun: settings.dryRun } });
     await notifyWorker("settings");
     refresh();

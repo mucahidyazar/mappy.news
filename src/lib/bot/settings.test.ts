@@ -17,6 +17,8 @@ describe("bot settings", () => {
     expect(settings.enabled).toBe(true);
     expect(settings.ai).toMatchObject({ provider: "anthropic", model: "claude-haiku-5-5", dailyBudgetUsd: 3 });
     expect(settings.review.minScore).toBe(0.45);
+    // Editors decide about related reports until the AI is put in charge.
+    expect(settings.merge).toEqual({ auto: false, minConfidence: 0.75 });
   });
 
   it("falls back to the defaults for invalid values", () => {

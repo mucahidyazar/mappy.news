@@ -166,7 +166,8 @@
     "nameTooShort": "Your name needs at least 2 characters.",
     "termsRequired": "You need to accept the terms.",
     "categoryKey": "Use 2–40 characters: a lowercase letter first, then lowercase letters, numbers or underscores.",
-    "handle": "Enter a valid X username."
+    "handle": "Enter a valid X username.",
+    "headCount": "Leave it empty or enter a whole number of 0 or more."
   },
   "footer": {
     "tagline": "A community-supported news platform that maps local incidents in Turkey together with their sources.",
@@ -515,7 +516,12 @@
       "summary": "Summary",
       "chartTotal": "{count, plural, one {# story} other {# stories}} in total",
       "today": "Today",
-      "spend": "AI spend today"
+      "spend": "AI spend today",
+      "casualtiesTitle": "Casualties",
+      "casualtiesRange": "Last 7 days · published incidents",
+      "casualties24h": "Last 24 hours: {deaths, number} killed · {injured, number} injured",
+      "casualtiesIncidents": "{count, plural, one {in # incident} other {in # incidents}}",
+      "casualtiesEmpty": "No published incident reported casualties in the last 7 days."
     },
     "review": {
       "title": "Review queue",
@@ -557,6 +563,7 @@
       "viewOnSite": "View on site",
       "rejectionReason": "Rejection reason",
       "suggestedParent": "{confidence, number, percent} likely to be a follow-up of:",
+      "suggestedDuplicate": "{confidence, number, percent} likely to be a duplicate of:",
       "attachAsUpdate": "Attach as an update",
       "mergeDuplicate": "Duplicate, merge",
       "linked": "Story linked",
@@ -620,7 +627,26 @@
       "searchStories": "Search published stories",
       "search": "Search",
       "noStories": "No stories match your search.",
-      "unlink": "Remove link"
+      "unlink": "Remove link",
+      "casualties": "Casualties",
+      "deaths": "Killed",
+      "injured": "Injured",
+      "casualtiesHint": "Leave empty when the reports give no number. Higher counts from attached updates show on the story by themselves.",
+      "reportedCasualties": "Casualties in text",
+      "mergeDecision": "Merge decision",
+      "mergeActions": {
+        "duplicate": "Duplicate",
+        "update": "Update",
+        "new": "New incident"
+      },
+      "mergeApplied": "carried out",
+      "mergeLeft": "left to an editor",
+      "aiReason": "The AI wasn't sure: {reason}",
+      "aiLinked": "Attached by the AI: {reason}",
+      "ruleReasons": {
+        "related_incident": "Similar place, time and wording.",
+        "same_incident": "Looks like the same incident."
+      }
     },
     "verifications": {
       "title": "Location checks",
@@ -881,13 +907,17 @@
           "queued": "Sent to review: {title} — {location}",
           "published": "Auto-published: {title} — {location}",
           "failed": "Couldn't process: {message}",
-          "no_location": "No location found, dropped"
+          "no_location": "No location found, dropped",
+          "duplicate_ai": "The AI found a duplicate and added it as a source: {title} — {reason}",
+          "queued_ai": "The AI attached it as an update: {title} — {reason}",
+          "published_ai": "The AI attached it as an update and published it: {title} — {reason}"
         },
         "ai": {
           "call": "AI analysis ({model}, {score})",
           "failed": "AI error: {message}",
           "budget_reached": "Daily AI budget used up",
-          "paused": "AI paused: {message}"
+          "paused": "AI paused: {message}",
+          "call_merge": "AI merge decision ({model}, {score})"
         },
         "geocode": {
           "failed": "Geocoder error: {message}"
@@ -904,6 +934,10 @@
         "auth": "{provider} rejected the API key",
         "rate_limit": "{provider} rate limit reached",
         "description": "Analysis is on hold until {until}; no items are lost. Once it's fixed, press “Scan now” or save the settings and the bot tries again right away. The provider said:"
+      },
+      "merge": {
+        "ai": "Merging: AI",
+        "rule": "Merging: editors"
       }
     },
     "sources": {
@@ -993,7 +1027,8 @@
         "dry_run": "dry run",
         "same_text": "same text",
         "same_url": "same link",
-        "same_incident": "same incident"
+        "same_incident": "same incident",
+        "ai_duplicate": "AI: same incident"
       },
       "category": "Category",
       "score": "News value",
@@ -1081,7 +1116,25 @@
       "readArticles": "Read the story page",
       "readArticlesHint": "When a feed only carries a short teaser, the bot opens the page of each post that passed screening and reads the full text. Places and details come out far more precisely.",
       "autoMinPrecision": "Minimum location precision",
-      "autoMinPrecisionHint": "Stories placed more coarsely than this (e.g. only a province) always go to an editor."
+      "autoMinPrecisionHint": "Stories placed more coarsely than this (e.g. only a province) always go to an editor.",
+      "merge": "Duplicates and updates",
+      "mergeDescription": "What happens when a report resembles an incident already covered.",
+      "mergeAuto": "Let the AI decide",
+      "mergeAutoHint": "When on, the AI compares a new report with similar stories from the same days: a duplicate is added as a source, a new development is attached as an update, another incident stays separate. When off, near-certain duplicates are merged by rule and the rest reaches you as a suggestion in the review queue.",
+      "mergeMinConfidence": "Minimum confidence",
+      "mergeMinConfidenceHint": "When the AI is less sure than this its decision isn't carried out; it shows in the review queue as a suggestion with its reason."
     }
+  },
+  "casualties": {
+    "title": "Casualties",
+    "deaths": "{count, plural, one {# killed} other {# killed}}",
+    "injured": "{count, plural, one {# injured} other {# injured}}",
+    "deathsLabel": "Killed",
+    "injuredLabel": "Injured",
+    "deathsLong": "{count, plural, one {# person killed} other {# people killed}}",
+    "injuredLong": "{count, plural, one {# person injured} other {# people injured}}",
+    "none": "No one killed or injured",
+    "fromUpdates": "As of the latest updates",
+    "inView": "In the incidents in view"
   }
 }

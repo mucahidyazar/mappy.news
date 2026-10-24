@@ -15,6 +15,13 @@
       "when": 1792600459927,
       "tag": "0001_bot_events_notify",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792840880472,
+      "tag": "0002_casualties",
+      "breakpoints": true
     }
   ]
 }

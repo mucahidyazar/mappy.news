@@ -30,6 +30,11 @@ export interface MapNewsItem {
   imageUrl: string | null;
   isSensitive: boolean;
   hasFollowUps: boolean;
+  /** The incident's latest known toll: a story's own, raised by its published updates. */
+  deaths: number | null;
+  injured: number | null;
+  /** The story every update of one incident hangs off; counts are summed once per incident. */
+  rootId: string;
 }
 
 export interface MapNewsResponse {
@@ -82,4 +87,6 @@ export interface NewsDetail {
   citations: NewsCitationDTO[];
   timeline: NewsTimelineEntry[];
   verificationOpen: boolean;
+  /** The incident's latest known toll; `fromUpdates` when a later report raised it above this story's own. */
+  casualties: { deaths: number | null; injured: number | null; fromUpdates: boolean };
 }

@@ -92,6 +92,18 @@ export const botSettingsSchema = z.object({
       dailyLimit: z.number().int().min(0).max(1000).default(40),
     })
     .default({ mode: "off", until: null, minScore: 0.75, minLocationConfidence: 0.75, minPrecision: "neighborhood", allowSensitive: false, dailyLimit: 40 }),
+  merge: z
+    .object({
+      /**
+       * When a new report resembles stories from the same days and place, the AI decides whether it repeats one
+       * (merged as a source), updates one (attached as an update) or is a new incident, and carries that out.
+       * Off: near-certain repeats are merged by rule and the rest is left to editors as a suggestion.
+       */
+      auto: z.boolean().default(false),
+      /** Below this the AI's verdict is only shown to editors as a suggestion. */
+      minConfidence: z.number().min(0.5).max(1).default(0.75),
+    })
+    .default({ auto: false, minConfidence: 0.75 }),
   x: z
     .object({
       /** Posts read per UTC day across all X accounts (X bills per read). */

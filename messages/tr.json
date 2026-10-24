@@ -166,7 +166,8 @@
     "nameTooShort": "Adın en az 2 karakter olmalı.",
     "termsRequired": "Kullanım koşullarını kabul etmelisin.",
     "categoryKey": "Küçük harfle başlayan, yalnızca küçük harf, rakam ve alt çizgi içeren 2–40 karakter gir.",
-    "handle": "Geçerli bir X kullanıcı adı gir."
+    "handle": "Geçerli bir X kullanıcı adı gir.",
+    "headCount": "Boş bırak ya da 0 veya daha büyük bir tam sayı gir."
   },
   "footer": {
     "tagline": "Türkiye'deki yerel olayları kaynaklarıyla birlikte haritada gösteren, topluluk destekli haber platformu.",
@@ -515,7 +516,12 @@
       "summary": "Özet",
       "chartTotal": "Toplam {count, number} haber",
       "today": "Bugün",
-      "spend": "Bugünkü AI harcaması"
+      "spend": "Bugünkü AI harcaması",
+      "casualtiesTitle": "Kayıplar",
+      "casualtiesRange": "Son 7 gün · yayımlanan olaylar",
+      "casualties24h": "Son 24 saat: {deaths, number} ölü · {injured, number} yaralı",
+      "casualtiesIncidents": "{count, plural, one {# olayda} other {# olayda}}",
+      "casualtiesEmpty": "Son 7 günde yayımlanan olaylarda kayıp bildirilmedi."
     },
     "review": {
       "title": "İnceleme kuyruğu",
@@ -557,6 +563,7 @@
       "viewOnSite": "Sitede gör",
       "rejectionReason": "Red nedeni",
       "suggestedParent": "Bu haber {confidence, number, percent} olasılıkla şu haberin devamı:",
+      "suggestedDuplicate": "Bu haber {confidence, number, percent} olasılıkla şu haberin kopyası:",
       "attachAsUpdate": "Güncelleme olarak bağla",
       "mergeDuplicate": "Kopya, birleştir",
       "linked": "Haber bağlandı",
@@ -620,7 +627,26 @@
       "searchStories": "Yayınlanmış haberlerde ara",
       "search": "Ara",
       "noStories": "Aramaya uyan haber yok.",
-      "unlink": "Bağlantıyı kaldır"
+      "unlink": "Bağlantıyı kaldır",
+      "casualties": "Kayıplar",
+      "deaths": "Ölü sayısı",
+      "injured": "Yaralı sayısı",
+      "casualtiesHint": "Kaynaklar sayı vermiyorsa boş bırak. Bağlı güncellemelerdeki daha yüksek sayılar haberde kendiliğinden görünür.",
+      "reportedCasualties": "Metindeki kayıplar",
+      "mergeDecision": "Birleştirme kararı",
+      "mergeActions": {
+        "duplicate": "Kopya",
+        "update": "Güncelleme",
+        "new": "Yeni olay"
+      },
+      "mergeApplied": "uygulandı",
+      "mergeLeft": "editöre bırakıldı",
+      "aiReason": "Yapay zekâ emin olamadı: {reason}",
+      "aiLinked": "Yapay zekâ bağladı: {reason}",
+      "ruleReasons": {
+        "related_incident": "Yeri, zamanı ve anlatımı benziyor.",
+        "same_incident": "Aynı olay gibi görünüyor."
+      }
     },
     "verifications": {
       "title": "Konum doğrulamaları",
@@ -881,13 +907,17 @@
           "queued": "İncelemeye gönderildi: {title} — {location}",
           "published": "Otomatik yayınlandı: {title} — {location}",
           "failed": "İşlenemedi: {message}",
-          "no_location": "Konum bulunamadı, elendi"
+          "no_location": "Konum bulunamadı, elendi",
+          "duplicate_ai": "Yapay zekâ kopya buldu, kaynak olarak ekledi: {title} — {reason}",
+          "queued_ai": "Yapay zekâ güncelleme olarak bağladı: {title} — {reason}",
+          "published_ai": "Yapay zekâ güncelleme olarak bağladı ve yayınladı: {title} — {reason}"
         },
         "ai": {
           "call": "AI analizi ({model}, {score})",
           "failed": "AI hatası: {message}",
           "budget_reached": "Günlük AI bütçesi doldu",
-          "paused": "AI duraklatıldı: {message}"
+          "paused": "AI duraklatıldı: {message}",
+          "call_merge": "AI birleştirme kararı ({model}, {score})"
         },
         "geocode": {
           "failed": "Konum servisi hatası: {message}"
@@ -904,6 +934,10 @@
         "auth": "{provider} API anahtarı reddedildi",
         "rate_limit": "{provider} hız sınırına takıldı",
         "description": "Analizler {until} saatine kadar bekletiliyor; kayıtlar kaybolmaz. Sorunu giderdikten sonra “Şimdi tara”ya bas ya da ayarları kaydet; bot hemen yeniden dener. Sağlayıcının mesajı:"
+      },
+      "merge": {
+        "ai": "Birleştirme: yapay zekâ",
+        "rule": "Birleştirme: editör"
       }
     },
     "sources": {
@@ -993,7 +1027,8 @@
         "dry_run": "deneme modu",
         "same_text": "aynı metin",
         "same_url": "aynı bağlantı",
-        "same_incident": "aynı olay"
+        "same_incident": "aynı olay",
+        "ai_duplicate": "yapay zekâ: aynı olay"
       },
       "category": "Kategori",
       "score": "Haber değeri",
@@ -1081,7 +1116,25 @@
       "readArticles": "Haber sayfasını oku",
       "readArticlesHint": "RSS'te yalnızca kısa bir özet varsa bot, ön elemeyi geçen haberlerin sayfasını açıp tam metni okur. Konum ve ayrıntılar çok daha isabetli çıkar.",
       "autoMinPrecision": "En düşük konum hassasiyeti",
-      "autoMinPrecisionHint": "Konumu bundan kaba bulunan haberler (ör. yalnızca il) her zaman editöre gider."
+      "autoMinPrecisionHint": "Konumu bundan kaba bulunan haberler (ör. yalnızca il) her zaman editöre gider.",
+      "merge": "Kopyalar ve güncellemeler",
+      "mergeDescription": "Daha önce haberleştirilmiş bir olaya benzeyen haber geldiğinde ne olacağı.",
+      "mergeAuto": "Yapay zekâ karar versin",
+      "mergeAutoHint": "Açıkken yapay zekâ yeni haberi aynı günlerdeki benzer haberlerle karşılaştırır: kopyaysa kaynak olarak ekler, yeni bir gelişmeyse güncelleme olarak bağlar, başka bir olaysa ayrı bırakır. Kapalıyken neredeyse kesin kopyalar kurala göre birleştirilir, gerisi inceleme kuyruğunda sana öneri olarak gelir.",
+      "mergeMinConfidence": "En düşük karar güveni",
+      "mergeMinConfidenceHint": "Yapay zekâ bunun altında bir güvenle karar verirse karar uygulanmaz; inceleme kuyruğunda gerekçesiyle öneri olarak görünür."
     }
+  },
+  "casualties": {
+    "title": "Kayıplar",
+    "deaths": "{count, plural, one {# ölü} other {# ölü}}",
+    "injured": "{count, plural, one {# yaralı} other {# yaralı}}",
+    "deathsLabel": "Ölü",
+    "injuredLabel": "Yaralı",
+    "deathsLong": "{count, plural, one {# kişi hayatını kaybetti} other {# kişi hayatını kaybetti}}",
+    "injuredLong": "{count, plural, one {# kişi yaralandı} other {# kişi yaralandı}}",
+    "none": "Ölen ya da yaralanan yok",
+    "fromUpdates": "Son gelişmelere göre",
+    "inView": "Görünen alandaki olaylarda"
   }
 }

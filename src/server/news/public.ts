@@ -30,6 +30,16 @@ const hasFollowUps = sql<boolean>`exists (
   where follow_up.parent_id = ${news.id} and follow_up.status = 'published'
 )`;
 
+// An incident's toll is the highest any of its published reports gives (GREATEST and MAX ignore NULL).
+const incidentDeaths = sql<number | null>`greatest(${news.deaths}, (
+  select max(follow_up.deaths) from ${news} as follow_up
+  where follow_up.parent_id = ${news.id} and follow_up.status = 'published'
+))`;
+const incidentInjured = sql<number | null>`greatest(${news.injured}, (
+  select max(follow_up.injured) from ${news} as follow_up
+  where follow_up.parent_id = ${news.id} and follow_up.status = 'published'
+))`;
+
 /** Published stories with a public position in the requested window, newest first. */
 export async function listMapNews(query: MapQuery): Promise<MapNewsResponse> {
   const { from, to } = resolveRange(query.range, query.from, query.to);
@@ -67,6 +77,9 @@ export async function listMapNews(query: MapQuery): Promise<MapNewsResponse> {
       imageUrl: news.imageUrl,
       isSensitive: news.isSensitive,
       hasFollowUps,
+      deaths: incidentDeaths,
+      injured: incidentInjured,
+      rootId: sql<string>`coalesce(${news.parentId}, ${news.id})`,
     })
     .from(news)
     .innerJoin(categories, eq(news.categoryId, categories.id))
@@ -100,9 +113,9 @@ function toCategoryDTO(category: typeof categories.$inferSelect): CategoryDTO {
   };
 }
 
-async function loadTimeline(rootId: string, currentId: string, includeUnpublished: boolean): Promise<NewsTimelineEntry[]> {
+async function loadTimeline(rootId: string, currentId: string, includeUnpublished: boolean) {
   const rows = await db
-    .select({ id: news.id, slug: news.slug, title: news.title, relation: news.relation, occurredAt: news.occurredAt })
+    .select({ id: news.id, slug: news.slug, title: news.title, relation: news.relation, occurredAt: news.occurredAt, deaths: news.deaths, injured: news.injured })
     .from(news)
     .where(
       and(
@@ -111,15 +124,24 @@ async function loadTimeline(rootId: string, currentId: string, includeUnpublishe
       ),
     )
     .orderBy(asc(news.occurredAt));
-  if (rows.length < 2) return [];
-  return rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    relation: row.id === rootId ? null : row.relation,
-    occurredAt: row.occurredAt.toISOString(),
-    isCurrent: row.id === currentId,
-  }));
+  const entries: NewsTimelineEntry[] =
+    rows.length < 2
+      ? []
+      : rows.map((row) => ({
+          id: row.id,
+          slug: row.slug,
+          title: row.title,
+          relation: row.id === rootId ? null : row.relation,
+          occurredAt: row.occurredAt.toISOString(),
+          isCurrent: row.id === currentId,
+        }));
+  return { entries, tolls: rows.map((row) => ({ deaths: row.deaths, injured: row.injured })) };
+}
+
+/** The highest count any report gives; null when none gives one. */
+function highest(values: Array<number | null>) {
+  const known = values.filter((value): value is number => value != null);
+  return known.length ? Math.max(...known) : null;
 }
 
 /** A story page. Unpublished stories are only returned for staff previews. */
@@ -137,6 +159,9 @@ export async function getNewsBySlug(slug: string, options: { includeUnpublished?
   if (row.status !== "published" && !options.includeUnpublished) return null;
 
   const timeline = await loadTimeline(row.parentId ?? row.id, row.id, Boolean(options.includeUnpublished));
+  const tolls = [...timeline.tolls, { deaths: row.deaths, injured: row.injured }];
+  const deaths = highest(tolls.map((toll) => toll.deaths));
+  const injured = highest(tolls.map((toll) => toll.injured));
   const verificationOpen = !row.isSensitive && !row.category.isSensitive && !isMorePrecise(row.precision, "neighborhood");
 
   return {
@@ -170,8 +195,9 @@ export async function getNewsBySlug(slug: string, options: { includeUnpublished?
       publisherName: citation.publisherName,
       publishedAt: citation.publishedAt?.toISOString() ?? null,
     })),
-    timeline,
+    timeline: timeline.entries,
     verificationOpen,
+    casualties: { deaths, injured, fromUpdates: deaths !== row.deaths || injured !== row.injured },
   };
 }
 

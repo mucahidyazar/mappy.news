@@ -168,6 +168,8 @@ export interface AdminNewsDetail {
   aiAnalysis: BotAnalysis | null;
   editorialScore: number | null;
   editorialConfidence: number | null;
+  deaths: number | null;
+  injured: number | null;
   citations: { id: string; url: string; title: string | null; publisherName: string | null; publishedAt: string | null }[];
   parent: { id: string; slug: string; title: string; relation: NewsRelation | null } | null;
   followUps: { id: string; slug: string; title: string; relation: NewsRelation | null; status: NewsStatus }[];
@@ -231,6 +233,8 @@ export async function getAdminNews(id: string): Promise<AdminNewsDetail | null> 
     aiAnalysis: row.aiAnalysis,
     editorialScore: row.editorialScore,
     editorialConfidence: row.editorialConfidence,
+    deaths: row.deaths,
+    injured: row.injured,
     citations: row.citations.map((citation) => ({
       id: citation.id,
       url: citation.url,
@@ -243,15 +247,18 @@ export async function getAdminNews(id: string): Promise<AdminNewsDetail | null> 
     suggestedParent: row.suggestedParent
       ? { ...row.suggestedParent, confidence: row.suggestedParentConfidence, reason: row.suggestedParentReason }
       : null,
-    similar: await findSimilarNews({
-      id: row.id,
-      title: row.title,
-      summary: row.summary,
-      latitude: row.latitude,
-      longitude: row.longitude,
-      occurredAt: row.occurredAt,
-      categoryId: row.categoryId,
-    }),
+    // Stories it is already attached to, or that hang off it, aren't offered again.
+    similar: (
+      await findSimilarNews({
+        id: row.id,
+        title: row.title,
+        summary: row.summary,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        occurredAt: row.occurredAt,
+        categoryId: row.categoryId,
+      })
+    ).filter((item) => item.id !== row.parentId && !row.followUps.some((followUp) => followUp.id === item.id)),
   };
 }
 

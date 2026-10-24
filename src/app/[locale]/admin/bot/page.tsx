@@ -80,6 +80,7 @@ export default async function BotPage({ params }: { params: Promise<{ locale: st
         <Badge variant="outline" className={autoPublishing ? "border-success/50 bg-success/10" : undefined}>
           {t(`autoPublish.${autoPublishing ? settings.autoPublish.mode : "off"}`)}
         </Badge>
+        <Badge variant="outline">{t(`merge.${settings.merge.auto ? "ai" : "rule"}`)}</Badge>
         <Badge variant="outline" className={aiReady ? undefined : "border-destructive/50 text-destructive"}>
           <Bot className="size-3" /> {providerName} · {settings.ai.model}
         </Badge>

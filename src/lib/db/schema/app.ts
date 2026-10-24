@@ -139,6 +139,10 @@ export const news = pgTable(
     imageUrl: text(),
     media: jsonb().$type<NewsMedia[]>().notNull().default([]),
 
+    /** People killed and injured as this report states them; null when it gives no number. */
+    deaths: integer(),
+    injured: integer(),
+
     editorialScore: real(),
     editorialConfidence: real(),
     isSensitive: boolean().notNull().default(false),

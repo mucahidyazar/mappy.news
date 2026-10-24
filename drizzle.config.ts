@@ -1,7 +1,9 @@
-import nextEnv from "@next/env";
+import * as nextEnv from "@next/env";
 import { defineConfig } from "drizzle-kit";
 
-nextEnv.loadEnvConfig(process.cwd());
+// @next/env is CommonJS: depending on the loader its exports sit on the namespace or on `default`.
+const { loadEnvConfig } = (nextEnv as unknown as { default?: typeof nextEnv }).default ?? nextEnv;
+loadEnvConfig(process.cwd());
 
 export default defineConfig({
   dialect: "postgresql",

@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { botItems, news, newsCitations } from "@/lib/db/schema";
 import { searchText } from "@/lib/domain/text";
 import { newsEditSchema, parentLinkSchema, reportInputSchema } from "@/lib/news/schemas";
-import { createNews, findCategoryByKey, locationColumns, publishPendingNews } from "@/lib/news/write";
+import { createNews, findCategoryByKey, locationColumns, publishPendingNews, raiseCasualties } from "@/lib/news/write";
 import { searchParentCandidates } from "@/server/admin/news";
 
 function refresh() {
@@ -117,6 +117,8 @@ export async function updateNews(input: unknown): Promise<ActionResult> {
           imageUrl: data.imageUrl ?? null,
           isSensitive: data.isSensitive,
           isFeatured: data.isFeatured,
+          deaths: data.deaths,
+          injured: data.injured,
           searchText: searchText(data.title, data.summary, location.locationLabel),
         })
         .where(eq(news.id, data.id))
@@ -203,6 +205,7 @@ export async function mergeIntoStory(input: { id: string; targetId: string }): P
         added += inserted.length;
       }
       if (added) await tx.update(news).set({ citationCount: sql`${news.citationCount} + ${added}` }).where(eq(news.id, targetId));
+      await raiseCasualties(tx, targetId, { deaths: duplicate.deaths, injured: duplicate.injured });
       await tx
         .update(news)
         .set({ status: "archived", rejectionReason: "duplicate", parentId: null, reviewedById: editor.id, reviewedAt: new Date() })

@@ -46,8 +46,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { translateDynamic } from "@/i18n/dynamic";
 import { Link, useRouter } from "@/i18n/navigation";
 import { NEWS_RELATIONS, type NewsRelation } from "@/lib/domain/constants";
+import type { Casualties } from "@/lib/domain/types";
 import { categoryName, newsPath } from "@/lib/news/format";
 import { newsEditSchema } from "@/lib/news/schemas";
 import type { CategoryDTO } from "@/lib/news/types";
@@ -140,6 +142,8 @@ export function NewsEditor({
       imageUrl: story.imageUrl ?? "",
       isSensitive: story.isSensitive,
       isFeatured: story.isFeatured,
+      deaths: story.deaths,
+      injured: story.injured,
     },
   });
   const { errors, isDirty } = form.formState;
@@ -184,6 +188,13 @@ export function NewsEditor({
 
   const analysis = story.aiAnalysis;
   const origin = story.origin;
+  const merge = analysis?.merge ?? null;
+  // A suggestion the AI left because it wasn't sure carries its reason; the rule's reasons are codes.
+  const suggestionReason = story.suggestedParent?.reason
+    ? merge && !merge.applied
+      ? t("aiReason", { reason: story.suggestedParent.reason })
+      : (translateDynamic(t, `ruleReasons.${story.suggestedParent.reason}`) ?? story.suggestedParent.reason)
+    : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -224,12 +235,12 @@ export function NewsEditor({
           <Sparkles className="size-4 shrink-0 text-primary" />
           <div className="min-w-0 flex-1 text-sm">
             <p>
-              {t("suggestedParent", { confidence: story.suggestedParent.confidence ?? 0 })}{" "}
+              {t(merge && !merge.applied && merge.action === "duplicate" ? "suggestedDuplicate" : "suggestedParent", { confidence: story.suggestedParent.confidence ?? 0 })}{" "}
               <Link href={`/admin/news/${story.suggestedParent.id}`} className="font-medium underline underline-offset-4">
                 {story.suggestedParent.title}
               </Link>
             </p>
-            {story.suggestedParent.reason ? <p className="mt-0.5 text-xs text-muted-foreground">{story.suggestedParent.reason}</p> : null}
+            {suggestionReason ? <p className="mt-0.5 text-xs text-muted-foreground">{suggestionReason}</p> : null}
           </div>
           <div className="flex shrink-0 gap-2">
             <Button
@@ -281,6 +292,24 @@ export function NewsEditor({
                 <dt className="w-28 shrink-0 text-muted-foreground">{t("sensitivity")}</dt>
                 <dd>{analysis.isSensitive ? (analysis.sensitivityType ?? t("yes")) : t("no")}</dd>
               </div>
+              {analysis.casualties ? (
+                <div className="flex gap-2">
+                  <dt className="w-28 shrink-0 text-muted-foreground">{t("reportedCasualties")}</dt>
+                  <dd>
+                    <CasualtyText casualties={analysis.casualties} />
+                  </dd>
+                </div>
+              ) : null}
+              {merge ? (
+                <div className="flex gap-2">
+                  <dt className="w-28 shrink-0 text-muted-foreground">{t("mergeDecision")}</dt>
+                  <dd>
+                    <span className="font-medium">{t(`mergeActions.${merge.action}`)}</span> · {Math.round(merge.confidence * 100)}% ·{" "}
+                    {merge.applied ? t("mergeApplied") : t("mergeLeft")}
+                    {merge.reason ? <span className="mt-0.5 block text-muted-foreground">{merge.reason}</span> : null}
+                  </dd>
+                </div>
+              ) : null}
               {analysis.keywords.length ? (
                 <div className="flex gap-2">
                   <dt className="w-28 shrink-0 text-muted-foreground">{t("keywords")}</dt>
@@ -394,6 +423,34 @@ export function NewsEditor({
               <FieldError errors={[message(errors.occurredAt)]} />
             </Field>
           </div>
+          <fieldset className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+            <legend className="mb-2 text-sm font-medium">{t("casualties")}</legend>
+            {(["deaths", "injured"] as const).map((name) => (
+              <Field key={name} data-invalid={Boolean(errors[name])}>
+                <FieldLabel htmlFor={`edit-${name}`} className="text-xs font-normal text-muted-foreground">
+                  {t(name)}
+                </FieldLabel>
+                <Controller
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <Input
+                      id={`edit-${name}`}
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={field.value ?? ""}
+                      onChange={(event) => field.onChange(event.target.value === "" ? null : Number(event.target.value))}
+                      className="w-32"
+                    />
+                  )}
+                />
+                <FieldError errors={[message(errors[name])]} />
+              </Field>
+            ))}
+            <p className="text-xs text-muted-foreground sm:col-span-2">{t("casualtiesHint")}</p>
+          </fieldset>
           <Field data-invalid={Boolean(errors.location)}>
             <FieldLabel>{t("location")}</FieldLabel>
             <Controller
@@ -460,12 +517,19 @@ export function NewsEditor({
       {story.parent || story.followUps.length ? (
         <div className="rounded-xl border bg-card p-4 text-sm">
           {story.parent ? (
-            <p>
-              {t("attachedTo", { relation: tRelation(story.parent.relation ?? "update") })}{" "}
-              <Link href={`/admin/news/${story.parent.id}`} className="font-medium underline underline-offset-4">
-                {story.parent.title}
-              </Link>
-            </p>
+            <>
+              <p>
+                {t("attachedTo", { relation: tRelation(story.parent.relation ?? "update") })}{" "}
+                <Link href={`/admin/news/${story.parent.id}`} className="font-medium underline underline-offset-4">
+                  {story.parent.title}
+                </Link>
+              </p>
+              {merge?.applied && merge.action === "update" && merge.targetId ? (
+                <p className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Sparkles className="mt-0.5 size-3 shrink-0" /> {t("aiLinked", { reason: merge.reason || "—" })}
+                </p>
+              ) : null}
+            </>
           ) : null}
           {story.followUps.length ? (
             <div className="mt-2 space-y-1">
@@ -598,6 +662,17 @@ export function NewsEditor({
       <LinkParentDialog storyId={story.id} open={linkOpen} onOpenChange={setLinkOpen} />
     </div>
   );
+}
+
+/** "2 ölü, 3 yaralı", "ölü ya da yaralı yok"; nothing for counts the report didn't give. */
+function CasualtyText({ casualties }: { casualties: Casualties }) {
+  const t = useTranslations("casualties");
+  const parts = [
+    casualties.deaths != null ? t("deaths", { count: casualties.deaths }) : null,
+    casualties.injured != null ? t("injured", { count: casualties.injured }) : null,
+  ].filter(Boolean);
+  if (casualties.deaths === 0 && casualties.injured === 0) return <>{t("none")}</>;
+  return <>{parts.length ? parts.join(", ") : "—"}</>;
 }
 
 function LinkParentDialog({ storyId, open, onOpenChange }: { storyId: string; open: boolean; onOpenChange: (open: boolean) => void }) {

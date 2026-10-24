@@ -37,25 +37,27 @@ function createDb() {
 
 export type Database = ReturnType<typeof createDb>;
 
-const globalForDrizzle = globalThis as unknown as { __mappyDb?: Database };
+// Only the connection pool outlives a dev reload. The Drizzle client is cheap and caches the schema's column
+// names, so it is rebuilt with this module: a changed schema works without restarting `next dev`.
+let instance: Database | undefined;
 
 function getDb(): Database {
-  if (!globalForDrizzle.__mappyDb) globalForDrizzle.__mappyDb = createDb();
-  return globalForDrizzle.__mappyDb;
+  instance ??= createDb();
+  return instance;
 }
 
 /** The shared Drizzle client. A proxy keeps it lazy while letting callers write `db.select()`. */
 export const db = new Proxy({} as Database, {
   get(_target, property) {
-    const instance = getDb();
-    const value = Reflect.get(instance, property, instance);
-    return typeof value === "function" ? value.bind(instance) : value;
+    const client = getDb();
+    const value = Reflect.get(client, property, client);
+    return typeof value === "function" ? value.bind(client) : value;
   },
 });
 
 export async function closeDb() {
   const sql = globalForDb.__mappySql;
   globalForDb.__mappySql = undefined;
-  globalForDrizzle.__mappyDb = undefined;
+  instance = undefined;
   await sql?.end({ timeout: 5 });
 }

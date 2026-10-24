@@ -14,6 +14,27 @@ export interface SourceCursor {
   lastItemAt?: string;
 }
 
+/** People killed and injured as a report states them; null where it gives no number. */
+export interface Casualties {
+  deaths: number | null;
+  injured: number | null;
+}
+
+export const MERGE_ACTIONS = ["duplicate", "update", "new"] as const;
+export type MergeAction = (typeof MERGE_ACTIONS)[number];
+
+/** The AI's verdict on how a new report relates to similar stories, kept with the report for editors. */
+export interface MergeDecisionRecord {
+  action: MergeAction;
+  /** The story it duplicates or updates; null for a new incident. */
+  targetId: string | null;
+  confidence: number;
+  reason: string;
+  model: string;
+  /** False when the AI wasn't sure enough and the decision was left to an editor as a suggestion. */
+  applied: boolean;
+}
+
 /** What the news bot concluded about a collected post; stored on the item and on the story it produced. */
 export interface BotAnalysis {
   isIncident: boolean;
@@ -46,6 +67,10 @@ export interface BotAnalysis {
   isSensitive: boolean;
   sensitivityType: string | null;
   keywords: string[];
+  /** Absent in analyses made before casualties were extracted. */
+  casualties?: Casualties | null;
+  /** Set when the merge agent compared the report with similar stories. */
+  merge?: MergeDecisionRecord | null;
   model: string;
   promptVersion: string;
 }

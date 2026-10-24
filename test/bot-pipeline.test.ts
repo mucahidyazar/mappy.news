@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { AnalyzeResult } from "@/lib/bot/analyze";
+import type { MergeResult } from "@/lib/bot/merge";
 import { activePause, type BotContext, collect, maintain, MAX_ATTEMPTS, type PassState, processPending, resumeWaitingItems } from "@/lib/bot/pipeline";
 import { parseBotSettings } from "@/lib/bot/settings";
 import { botEvents, botItems, news, newsCitations, sources } from "@/lib/db/schema";
@@ -62,6 +63,9 @@ describe("news bot pipeline", () => {
   const articles = new Map<string, string>();
   const analyzedBodies = new Map<string, string>();
   let analyzeCalls = 0;
+  /** The merge agent's verdict per report title: the action and the title of the story it picks. */
+  const verdicts = new Map<string, { action: "duplicate" | "update" | "new"; target?: string; confidence: number; reason: string } | Error>();
+  const mergeCandidates = new Map<string, string[]>();
 
   function context(settings: Record<string, unknown> = {}): BotContext {
     return {
@@ -86,6 +90,17 @@ describe("news bot pipeline", () => {
         const result = analyses.get(input.entry.title ?? "");
         if (result instanceof Error) throw result;
         return { analysis: result ?? analysis({ isIncident: false, rejectionReason: "test default" }), usage: { inputTokens: 1000, outputTokens: 200 } as AnalyzeResult["usage"], durationMs: 5 };
+      },
+      decideMerge: async (input): Promise<MergeResult> => {
+        mergeCandidates.set(input.subject.title, input.candidates.map((candidate) => candidate.title));
+        const plan = verdicts.get(input.subject.title);
+        if (plan instanceof Error) throw plan;
+        const target = plan?.target ? (input.candidates.find((candidate) => candidate.title === plan.target) ?? null) : null;
+        return {
+          verdict: { action: plan?.action ?? "new", target, confidence: plan?.confidence ?? 0.9, reason: plan?.reason ?? "" },
+          usage: { inputTokens: 300, outputTokens: 40 } as MergeResult["usage"],
+          durationMs: 3,
+        };
       },
     };
   }
@@ -179,6 +194,73 @@ describe("news bot pipeline", () => {
     const [story] = await db.select().from(news).where(eq(news.id, crash.newsId!));
     expect(story).toMatchObject({ status: "published", origin: "bot" });
     expect(story!.publishedAt).toBeInstanceOf(Date);
+  });
+
+  it("lets the AI attach updates, merge repeats and keep other incidents apart", async () => {
+    await addSource("merge-feed");
+    const original = await item("fire");
+    feed = rss([
+      { id: "fire-toll", title: "Moda'da ölü sayısı arttı", body: "Kadıköy Moda'daki yangında ağır yaralanan bir kişi hastanede hayatını kaybetti." },
+      { id: "fire-again", title: "Moda'da yangın yine", body: "Kadıköy Moda'da 4 katlı binada çıkan yangında 5 kişi dumandan etkilendi." },
+      { id: "fire-other-street", title: "Bahariye'de dükkan yangını", body: "Kadıköy Bahariye Caddesi'nde bir dükkanda yangın çıktı, itfaiye müdahale etti." },
+      { id: "fire-unsure", title: "Kadıköy'de duman", body: "Kadıköy'de bir binadan yoğun duman yükseldi, itfaiye bölgeye sevk edildi." },
+    ]);
+    const toll = "Moda'daki yangında ölü sayısı 2'ye yükseldi";
+    analyses.set("Moda'da ölü sayısı arttı", analysis({ title: toll, summary: "Kadıköy Moda'daki yangında ağır yaralanan bir kişi daha öldü.", casualties: { deaths: 2, injured: 3 } }));
+    analyses.set("Moda'da yangın yine", analysis({ title: "Moda'da 4 katlı binada yangın", casualties: { deaths: 1, injured: 5 } }));
+    analyses.set("Bahariye'de dükkan yangını", analysis({ title: "Bahariye Caddesi'nde dükkan yangını" }));
+    analyses.set("Kadıköy'de duman", analysis({ title: "Kadıköy'de bir binadan yoğun duman yükseldi" }));
+    verdicts.set(toll, { action: "update", target: "Kadıköy Moda'da binada yangın", confidence: 0.92, reason: "Aynı yangın; ölü sayısı arttı." });
+    verdicts.set("Moda'da 4 katlı binada yangın", { action: "duplicate", target: "Kadıköy Moda'da binada yangın", confidence: 0.95, reason: "Aynı yangın, yeni bilgi yok." });
+    verdicts.set("Bahariye Caddesi'nde dükkan yangını", { action: "new", confidence: 0.85, reason: "Başka bir caddede başka bir yangın." });
+    verdicts.set("Kadıköy'de bir binadan yoğun duman yükseldi", { action: "update", target: "Kadıköy Moda'da binada yangın", confidence: 0.55, reason: "Aynı yangın olabilir, yer belirsiz." });
+    await collect(context());
+
+    const result = await processPending(context({ merge: { auto: true } }));
+    expect(result.statuses).toEqual({ queued: 3, duplicate: 1 });
+    // The agent saw the earlier fire among the similar stories.
+    expect(mergeCandidates.get(toll)).toContain("Kadıköy Moda'da binada yangın");
+
+    const update = await item("fire-toll");
+    const [attached] = await db.select().from(news).where(eq(news.id, update.newsId!));
+    expect(attached).toMatchObject({ parentId: original.newsId, relation: "update", suggestedParentId: null, deaths: 2, injured: 3 });
+    expect(attached!.aiAnalysis?.merge).toMatchObject({ action: "update", targetId: original.newsId, applied: true, reason: "Aynı yangın; ölü sayısı arttı." });
+
+    const repeat = await item("fire-again");
+    expect(repeat).toMatchObject({ status: "duplicate", rejectionReason: "ai_duplicate", newsId: original.newsId });
+    const [root] = await db.select().from(news).where(eq(news.id, original.newsId!));
+    // The repeat's sources and higher counts join the story it repeats.
+    expect(root).toMatchObject({ deaths: 1, injured: 5 });
+    const citations = await db.select({ url: newsCitations.url }).from(newsCitations).where(eq(newsCitations.newsId, original.newsId!));
+    expect(citations.map((citation) => citation.url)).toContain("https://feed.example/fire-again");
+
+    const other = await item("fire-other-street");
+    const [apart] = await db.select().from(news).where(eq(news.id, other.newsId!));
+    expect(apart).toMatchObject({ parentId: null, suggestedParentId: null });
+
+    // Not sure enough: an editor decides, with the agent's reason.
+    const unsure = await item("fire-unsure");
+    const [suggested] = await db.select().from(news).where(eq(news.id, unsure.newsId!));
+    expect(suggested).toMatchObject({ parentId: null, suggestedParentId: original.newsId, suggestedParentConfidence: 0.55, suggestedParentReason: "Aynı yangın olabilir, yer belirsiz." });
+    expect(suggested!.aiAnalysis?.merge).toMatchObject({ applied: false });
+
+    const mergeCalls = await db.select({ data: botEvents.data }).from(botEvents).where(eq(botEvents.code, "ai.call"));
+    expect(mergeCalls.filter((event) => event.data.purpose === "merge")).toHaveLength(4);
+    const [duplicateEvent] = await db.select({ data: botEvents.data }).from(botEvents).where(and(eq(botEvents.code, "item.duplicate"), eq(botEvents.itemId, repeat.id)));
+    expect(duplicateEvent?.data).toMatchObject({ by: "ai", reason: "Aynı yangın, yeni bilgi yok." });
+  });
+
+  it("decides by rule when the merge agent can't be asked", async () => {
+    await addSource("merge-fallback");
+    feed = rss([{ id: "fire-rule", title: "Moda yangını", body: "Kadıköy Moda'daki 4 katlı binada yangın çıktı, iki kişi dumandan etkilendi." }]);
+    analyses.set("Moda yangını", analysis({ title: "Kadıköy Moda'da binada yangın", summary: "Moda'da 4 katlı bir binada yangın çıktı, 2 kişi dumandan etkilendi." }));
+    verdicts.set("Kadıköy Moda'da binada yangın", new Error("model overloaded"));
+    await collect(context());
+
+    expect((await processPending(context({ merge: { auto: true } }))).statuses).toEqual({ duplicate: 1 });
+    expect(await item("fire-rule")).toMatchObject({ status: "duplicate", rejectionReason: "same_incident" });
+    const failures = await db.select({ data: botEvents.data, message: botEvents.message }).from(botEvents).where(eq(botEvents.code, "ai.failed"));
+    expect(failures.at(-1)).toMatchObject({ data: { purpose: "merge" }, message: "model overloaded" });
   });
 
   it("pauses analysis when the daily AI budget is spent", async () => {

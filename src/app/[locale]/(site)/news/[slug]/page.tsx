@@ -6,6 +6,7 @@ import { cache } from "react";
 
 import { CategoryIcon } from "@/components/icons/category-icon";
 import { Page, Panel } from "@/components/layout/container";
+import { CasualtyStats } from "@/components/news/casualties";
 import { CommentsSection } from "@/components/news/comments-section";
 import { LocationLabel } from "@/components/news/location-label";
 import { MiniMap } from "@/components/news/mini-map";
@@ -149,6 +150,7 @@ export default async function NewsPage({ params }: { params: Promise<{ locale: s
                 <MessageCircle className="size-4" /> {story.commentCount}
               </span>
             </div>
+            <CasualtyStats {...story.casualties} className="pt-1" />
           </header>
 
           {story.imageUrl ? (
